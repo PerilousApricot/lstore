@@ -159,6 +159,9 @@ int main(int argc, char **argv)
 
     i=1;
     do {
+        if (argc == 1) {
+            break;
+        }
         start_option = i;
 
         if (strcmp(argv[i], "-rd") == 0) { //** Recurse depth

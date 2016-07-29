@@ -120,7 +120,7 @@ tbx_sl_t * tbx_sl_new_full(unsigned int maxlevels, double p, bool allow_dups,
     tbx_sl_t * sl = tbx_sl_malloc();
     if (!sl)
         return NULL;
-    if (!tbx_sl_init_full(sl, maxlevels, p, allow_dups,
+    if (tbx_sl_init_full(sl, maxlevels, p, allow_dups,
                             compare, dup, key_free, data_free)) {
         tbx_sl_del(sl);
         return NULL;

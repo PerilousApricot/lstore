@@ -155,9 +155,8 @@ char * _get_line(bfile_t *bfd)
         tbx_type_malloc(entry, bfile_entry_t, 1);
         entry->fd = bfile_fopen(bfd->include_paths, fname);
         if (entry->fd == NULL) {  //** Can't open the file
-            log_printf(1, "_get_line: Problem opening include file !%s!\n", fname);
-            free(entry);
-            abort();
+            log_printf(-1, "_get_line: Problem opening include file !%s!\n", fname);
+            FATAL_UNLESS(entry->fd != NULL);
         }
         entry->used = 0;
         tbx_stack_push(bfd->stack, (void *)bfd->curr);
@@ -538,7 +537,7 @@ tbx_inip_file_t *tbx_inip_file_read(const char *fname)
     }
     tbx_inip_file_t *ret = inip_read_fd(fd);
     if (!is_stdin) {
-        fclose(fd);
+        //fclose(fd);
     }
     return ret;
 }
