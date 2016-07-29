@@ -154,10 +154,10 @@ int zero_native_send(gop_mq_socket_t *socket, mq_msg_t *msg, int flags)
                 if (errno == EHOSTUNREACH) usleep(100);
             }
             loop++;
-            log_printf(5, "sending frame=%d len=%d bytes=%d errno=%d loop=%d\n", count, f->len, bytes, errno, loop);
+            log_printf(15, "sending frame=%d len=%d bytes=%d errno=%d loop=%d\n", count, f->len, bytes, errno, loop);
             tbx_log_flush();
             if (f->len>0) {
-                log_printf(5, "byte=%uc\n", (unsigned char)f->data[0]);
+                log_printf(15, "byte=%uc\n", (unsigned char)f->data[0]);
                 tbx_log_flush();
             }
         } while ((bytes == -1) && (loop < 10));

@@ -556,8 +556,13 @@ tbx_inip_file_t *tbx_inip_string_read(const char *text)
      * versions of libc that have the other behavior, just tell coverity to
      * ignore it
      */
+    const char template[] = "tbx_inip_XXXXXX";
+    char *template_copy = strdup(template);
+    if (!template_copy) {
+        goto error0;
+    }
     // coverity[secure_temp]
-    int file_temp = mkstemp("tbx_inip_XXXXXX");
+    int file_temp = mkstemp(template_copy);
     if (file_temp == -1) {
         goto error1;
     }
@@ -568,11 +573,15 @@ tbx_inip_file_t *tbx_inip_string_read(const char *text)
     fprintf(fd, "%s\n", text);
 
     tbx_inip_file_t *ret = inip_read_fd(fd);
-    fclose(fd);
+    // apparently inip_read_fd does frees on its own?
+    //fclose(fd);
+    free(template_copy);
     return ret;
 
 error2:
     close(file_temp);
 error1:
+    free(template_copy);
+error0:
     return NULL;
 }

@@ -82,6 +82,7 @@ void print_rid_summary(char *config, int base)
 
     //** And load it
     ig = tbx_inip_group_first(kf);
+    FATAL_UNLESS(ig);
     while (ig != NULL) {
         key = tbx_inip_group_get(ig);
         if (strcmp("rid", key) == 0) {  //** Found a resource
@@ -185,6 +186,9 @@ int main(int argc, char **argv)
 
     i=1;
     do {
+        if (argc == 1) {
+            break;
+        }
         start_option = i;
 
         if (strcmp(argv[i], "-w") == 0) { //** Watch for any RID changes
