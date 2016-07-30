@@ -34,7 +34,6 @@
 #include <tbx/stack.h>
 #include <tbx/type_malloc.h>
 #include <unistd.h>
-#include <zmq.h>
 
 #include "mq_portal.h"
 
@@ -138,6 +137,7 @@ int zero_native_send(gop_mq_socket_t *socket, mq_msg_t *msg, int flags)
 
     n = 0;
     f = gop_mq_msg_first(msg);
+    log_printf(1, "ALL NEW FRAME %p\n", f);
     if (f->len > 1) {
         log_printf(5, "dest=!%.*s! nframes=%d\n", f->len, (char *)(f->data), tbx_stack_count(msg));
         tbx_log_flush();
@@ -151,7 +151,11 @@ int zero_native_send(gop_mq_socket_t *socket, mq_msg_t *msg, int flags)
         do {
             bytes = zmq_send(socket->arg, f->data, f->len, ZMQ_SNDMORE);
             if (bytes == -1) {
-                if (errno == EHOSTUNREACH) usleep(100);
+                if (errno == EHOSTUNREACH) {
+                    usleep(100);
+                } else {
+                    FATAL_UNLESS(errno == EHOSTUNREACH);
+                }
             }
             loop++;
             log_printf(15, "sending frame=%d len=%d bytes=%d errno=%d loop=%d\n", count, f->len, bytes, errno, loop);
@@ -164,6 +168,7 @@ int zero_native_send(gop_mq_socket_t *socket, mq_msg_t *msg, int flags)
         n += bytes;
         count++;
         f = fn;
+        log_printf(1, "ALL NEW FRAME %p\n", f);
     }
 
     if (f != NULL) n += zmq_send(socket->arg, f->data, f->len, 0);
@@ -190,7 +195,7 @@ int zero_native_recv(gop_mq_socket_t *socket, mq_msg_t *msg, int flags)
         more = 0;
         rc = zmq_getsockopt (socket->arg, ZMQ_EVENTS, &more, &msize);
         log_printf(5, "more=" I64T "\n", more);
-        assert (rc == 0);
+        FATAL_UNLESS(rc == 0);
         if ((more & ZMQ_POLLIN) == 0) return(-1);
     }
 
@@ -198,24 +203,34 @@ int zero_native_recv(gop_mq_socket_t *socket, mq_msg_t *msg, int flags)
     nframes = 0;
     do {
         tbx_type_malloc(f, gop_mq_frame_t, 1);
+        gop_mq_frame_t *prevent_overwrite = f;
+        FATAL_UNLESS(prevent_overwrite == f);
+        log_printf(1, "ALL NEW FRAME %p\n", f);
 
         rc = zmq_msg_init(&(f->zmsg));
-        assert (rc == 0);
+        log_printf(1, "ALL NEW FRAME %p zm %p b %lu zm %lu\n", f, &(f->zmsg), sizeof(gop_mq_frame_t), sizeof(f->zmsg));
+
+        FATAL_UNLESS(rc == 0);
         rc = zmq_msg_recv(&(f->zmsg), socket->arg, flags);
         log_printf(15, "rc=%d errno=%d\n", rc, errno);
-        assert (rc != -1);
+        FATAL_UNLESS(rc != -1);
+        FATAL_UNLESS(prevent_overwrite == f);
 
         rc = zmq_getsockopt (socket->arg, ZMQ_RCVMORE, &more, &msize);
-        assert (rc == 0);
+        FATAL_UNLESS(rc == 0);
 
         f->len = zmq_msg_size(&(f->zmsg));
+        log_printf(1, "ALL NEW FRAME %p\n", f);
         f->data = zmq_msg_data(&(f->zmsg));
+        log_printf(1, "ALL NEW FRAME %p\n", f);
         f->auto_free = MQF_MSG_INTERNAL_FREE;
 
         gop_mq_msg_append_frame(msg, f);
+        log_printf(1, "ALL NEW FRAME %p\n", f);
         n += f->len;
         nframes++;
         log_printf(5, "more=" I64T "\n", more);
+        FATAL_UNLESS(prevent_overwrite == f);
     } while (more > 0);
 
     log_printf(5, "total bytes=%d nframes=%d\n", n, nframes);

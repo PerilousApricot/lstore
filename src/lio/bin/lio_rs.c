@@ -65,7 +65,7 @@ void print_rid_summary(char *config, int base)
     tbx_inip_element_t *ele;
     char *key, *value;
     char fbuf[20], ubuf[20], tbuf[20];
-    char *state[5] = { "UP      ", "IGNORE  ", "NO_SPACE", "DOWN    ", "INVALID " };
+    //char *state[5] = { "UP      ", "IGNORE  ", "NO_SPACE", "DOWN    ", "INVALID " };
     int n, n_usable;
     rid_summary_t *rsum;
     ex_off_t space_total, space_free, space_used;
@@ -82,7 +82,6 @@ void print_rid_summary(char *config, int base)
 
     //** And load it
     ig = tbx_inip_group_first(kf);
-    FATAL_UNLESS(ig);
     while (ig != NULL) {
         key = tbx_inip_group_get(ig);
         if (strcmp("rid", key) == 0) {  //** Found a resource
@@ -133,12 +132,12 @@ void print_rid_summary(char *config, int base)
     printf("        RID             State             Host                      Used       Free        Total\n");
     printf("--------------------  --------  ------------------------------   ---------   ---------   ---------\n");
     it = tbx_list_iter_search(table, NULL, 0);
-    while (tbx_list_next(&it, (tbx_list_key_t **)&key, (tbx_list_data_t **)&rsum) == 0) {
-        printf("%-20s  %8s  %-30s   %8s   %8s   %8s\n", rsum->rid, state[rsum->status], rsum->host,
-               tbx_stk_pretty_print_double_with_scale(base, (double)rsum->used, ubuf),
-               tbx_stk_pretty_print_double_with_scale(base, (double)rsum->free, fbuf),
-               tbx_stk_pretty_print_double_with_scale(base, (double)rsum->total, tbuf));
-    }
+    //while (tbx_list_next(&it, (tbx_list_key_t **)&key, (tbx_list_data_t **)&rsum) == 0) {
+    //    printf("%-20s  %8s  %-30s   %8s   %8s   %8s\n", rsum->rid, state[rsum->status], rsum->host,
+    //            tbx_stk_pretty_print_double_with_scale(base, (double)rsum->used, ubuf),
+    //           tbx_stk_pretty_print_double_with_scale(base, (double)rsum->free, fbuf),
+    //           tbx_stk_pretty_print_double_with_scale(base, (double)rsum->total, tbuf));
+    //}
 
     printf("--------------------------------------------------------------   ---------   ---------   ---------\n");
     printf("Usable Resources:%4d                                            %8s   %8s   %8s\n", n_usable,
@@ -164,7 +163,6 @@ int main(int argc, char **argv)
     int start_option, i, watch, summary, base;
     lio_rs_mapping_notify_t notify, me;
     apr_time_t dt;
-    char *config;
 
     if (argc < 2) {
         printf("\n");
@@ -227,7 +225,7 @@ int main(int argc, char **argv)
         apr_thread_mutex_unlock(lock);
 
         if (i != 0) {
-            config = rs_get_rid_config(lio_gc->rs);
+            char *config = rs_get_rid_config(lio_gc->rs);
 
             printf("Map Version: %d  Status Version: %d\n", me.map_version, me.status_version);
             printf("--------------------------------------------------------------------------------------------------\n");
@@ -236,13 +234,13 @@ int main(int argc, char **argv)
                 printf("ERROR NULL config!\n");
             } else if (summary == 1) {
                 print_rid_summary(config, base);
+                free(config);
             } else {
                 printf("%s", config);
+                free(config);
             }
 
             printf("--------------------------------------------------------------------------------------------------\n");
-
-            if (config != NULL) free(config);
         }
     } while (watch == 1);
 

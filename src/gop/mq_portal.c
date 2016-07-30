@@ -294,13 +294,13 @@ int mq_task_send(gop_mq_context_t *mqc, gop_mq_task_t *task)
     if (f == NULL) return(1);
 
     gop_mq_get_frame(f, (void **)&host, &size);
-    if (size == 0) abort();
+    //if (size == 0) abort();
 
     //** Look up the portal
     apr_thread_mutex_lock(mqc->lock);
     p = (gop_mq_portal_t *)(apr_hash_get(mqc->client_portals, host, size));
     if (p == NULL) {  //** New host so create the portal
-        FATAL_UNLESS(host != NULL);
+        //FATAL_UNLESS(host != NULL);
         log_printf(10, "Creating MQ_CMODE_CLIENT portal for outgoing connections host = %s size = %d\n", host, size);
         p = gop_mq_portal_create(mqc, host, MQ_CMODE_CLIENT);
         apr_hash_set(mqc->client_portals, p->host, APR_HASH_KEY_STRING, p);
@@ -1195,7 +1195,7 @@ int mq_conn_make(gop_mq_conn_t *c)
 {
     mq_pollitem_t pfd;
     int err, n, frame;
-    mq_msg_t *msg;
+    mq_msg_t *msg = NULL;
     gop_mq_frame_t *f;
     char *data;
     apr_time_t start, dt;
@@ -1231,7 +1231,7 @@ int mq_conn_make(gop_mq_conn_t *c)
     hb->lut_id = tbx_atomic_global_counter();
     hb->count = 1;
 
-//** This is the ping message
+    //** This is the ping message
     msg = gop_mq_msg_new();
     gop_mq_msg_append_mem(msg, c->pc->host, strlen(c->pc->host), MQF_MSG_KEEP_DATA);
     gop_mq_msg_append_mem(msg, NULL, 0, MQF_MSG_KEEP_DATA);
