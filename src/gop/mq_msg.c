@@ -34,7 +34,6 @@ int gop_mq_get_frame(gop_mq_frame_t *f, void **data, int *size)
     log_printf(0, "ALL DIN %p\n", f);
     tbx_log_flush();
 
-    FATAL_UNLESS(f != NULL);
     if (f == NULL) {
         *data = NULL;
         *size = 0;
@@ -235,7 +234,7 @@ void gop_mq_msg_append_msg(mq_msg_t *msg, mq_msg_t *extra, int mode)
     char *data;
 
     tbx_stack_move_to_top(msg);
-    for (curr = tbx_stack_get_top(msg);
+    for (curr = tbx_stack_get_top(extra);
             curr != NULL;
             curr = tbx_stack_ele_get_down(curr)) {
         f = (gop_mq_frame_t *)tbx_stack_ele_get_data(curr);
@@ -268,8 +267,6 @@ gop_mq_msg_hash_t mq_msg_hash(mq_msg_t *msg)
             curr != NULL;
             curr = tbx_stack_ele_get_down(curr)) {
         f = (gop_mq_frame_t *)tbx_stack_ele_get_data(curr);
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
 
 
         gop_mq_get_frame(f, (void **)&data, &size);

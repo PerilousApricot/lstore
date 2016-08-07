@@ -294,7 +294,6 @@ int mq_task_send(gop_mq_context_t *mqc, gop_mq_task_t *task)
     if (f == NULL) return(1);
 
     gop_mq_get_frame(f, (void **)&host, &size);
-    //if (size == 0) abort();
 
     //** Look up the portal
     apr_thread_mutex_lock(mqc->lock);
