@@ -2231,6 +2231,7 @@ gop_op_generic_t *seglun_inspect(lio_segment_t *seg, data_attr_t *da, tbx_log_fd
 
     gop = NULL;
     option = mode & INSPECT_COMMAND_BITS;
+    log_printf(0,"Got mode %x and option %x mask %x\n", (unsigned int) option, (unsigned int) mode, INSPECT_COMMAND_BITS);
 
     switch (option) {
     case (INSPECT_QUICK_CHECK):

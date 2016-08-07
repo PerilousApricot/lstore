@@ -130,7 +130,7 @@ char * _get_line(bfile_t *bfd)
     if (bfd->curr->used == 1) return(bfd->curr->buffer);
 
     comment = fgets(bfd->curr->buffer, BUFMAX, bfd->curr->fd);
-    log_printf(15, "_get_line: fgets=%s", comment);
+    log_printf(15, "_get_line: fgets=%s\n", comment);
 
     if (comment == NULL) {  //** EOF or error
         fclose(bfd->curr->fd);
@@ -566,7 +566,7 @@ tbx_inip_file_t *tbx_inip_string_read(const char *text)
     if (file_temp == -1) {
         goto error1;
     }
-    FILE *fd = fdopen(file_temp, "r");
+    FILE *fd = fdopen(file_temp, "w+");
     if (!fd) {
         goto error2;
     }

@@ -31,9 +31,7 @@
 
 int gop_mq_get_frame(gop_mq_frame_t *f, void **data, int *size)
 {
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
-
+    FATAL_UNLESS(f != NULL);
     if (f == NULL) {
         *data = NULL;
         *size = 0;
@@ -56,9 +54,6 @@ char *gop_mq_frame_strdup(gop_mq_frame_t *f)
 {
     char *data, *str;
     int n;
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
-
 
     gop_mq_get_frame(f, (void **)&data, &n);
 
@@ -111,43 +106,24 @@ gop_mq_frame_t *gop_mq_msg_pluck(mq_msg_t *msg, int move_up)
 }
 void mq_msg_tbx_stack_insert_above(mq_msg_t *msg, gop_mq_frame_t *f)
 {
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
-
-
     tbx_stack_insert_above(msg, f);
 }
 void mq_msg_tbx_stack_insert_below(mq_msg_t *msg, gop_mq_frame_t *f)
 {
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
-
-
     tbx_stack_insert_below(msg, f);
 }
 void mq_msg_push_frame(mq_msg_t *msg, gop_mq_frame_t *f)
 {
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
-
-
     tbx_stack_push(msg, f);
 }
 void gop_mq_msg_append_frame(mq_msg_t *msg, gop_mq_frame_t *f)
 {
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
-
-
     tbx_stack_move_to_bottom(msg);
     tbx_stack_insert_below(msg, f);
 }
 
 void gop_mq_frame_set(gop_mq_frame_t *f, void *data, int len, gop_mqf_msg_t auto_free)
 {
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
-
     f->data = data;
     f->len = len;
     f->auto_free = auto_free;
@@ -159,9 +135,6 @@ gop_mq_frame_t *gop_mq_frame_new(void *data, int len, gop_mqf_msg_t auto_free)
 
     tbx_type_malloc(f, gop_mq_frame_t, 1);
     gop_mq_frame_set(f, data, len, auto_free);
-
-    log_printf(0, "ALL FRAME_NEW %p\n", f);
-    tbx_log_flush();
 
     return(f);
 }
@@ -178,15 +151,12 @@ gop_mq_frame_t *mq_frame_dup(gop_mq_frame_t *f)
         tbx_type_malloc(copy, void, size);
         memcpy(copy, data, size);
     }
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
 
     return(gop_mq_frame_new(copy, size, MQF_MSG_AUTO_FREE));
 }
 
 void gop_mq_frame_destroy(gop_mq_frame_t *f)
 {
-    log_printf(0, "ALL DESTROY FRAME %p\n", f);
     if ((f->auto_free == MQF_MSG_AUTO_FREE) && (f->data)) {
         free(f->data);
         f->data = NULL;
@@ -194,36 +164,27 @@ void gop_mq_frame_destroy(gop_mq_frame_t *f)
         zmq_msg_close(&(f->zmsg));
         zmq_msg_init(&(f->zmsg));
     }
-    tbx_log_flush();
     free(f);
 }
 
 void gop_mq_msg_destroy(mq_msg_t *msg)
 {
     gop_mq_frame_t *f;
-    log_printf(0, "ALL DOUT %p\n", msg);
-    tbx_log_flush();
     while ((f = tbx_stack_pop(msg)) != NULL) {
         gop_mq_frame_destroy(f);
     }
-
     tbx_stack_free(msg, 0);
 }
 
 void mq_msg_push_mem(mq_msg_t *msg, void *data, int len, gop_mqf_msg_t auto_free)
 {
     void *f = gop_mq_frame_new(data, len, auto_free);
-    log_printf(0, "ALL MQ %p\n", f);
-    tbx_log_flush();
     tbx_stack_push(msg, f);
 }
 void gop_mq_msg_append_mem(mq_msg_t *msg, void *data, int len, gop_mqf_msg_t auto_free)
 {
     tbx_stack_move_to_bottom(msg);
     void *f = gop_mq_frame_new(data, len, auto_free);
-    log_printf(0, "ALL MQ %p\n", f);
-    tbx_log_flush();
-
     tbx_stack_insert_below(msg, f);
 }
 
@@ -238,10 +199,6 @@ void gop_mq_msg_append_msg(mq_msg_t *msg, mq_msg_t *extra, int mode)
             curr != NULL;
             curr = tbx_stack_ele_get_down(curr)) {
         f = (gop_mq_frame_t *)tbx_stack_ele_get_data(curr);
-    log_printf(0, "ALL DIN %p\n", f);
-    tbx_log_flush();
-
-
         if (mode == MQF_MSG_AUTO_FREE) {
             tbx_type_malloc(data, char, f->len);
             memcpy(data, f->data, f->len);
@@ -267,8 +224,6 @@ gop_mq_msg_hash_t mq_msg_hash(mq_msg_t *msg)
             curr != NULL;
             curr = tbx_stack_ele_get_down(curr)) {
         f = (gop_mq_frame_t *)tbx_stack_ele_get_data(curr);
-
-
         gop_mq_get_frame(f, (void **)&data, &size);
         for (p = data; size > 0; p++, size--) {
             h.full_hash = h.full_hash * 33 + *p;
@@ -293,9 +248,6 @@ int mq_msg_total_size(mq_msg_t *msg)
     n = 0;
     tbx_stack_move_to_top(msg);
     while ((f = tbx_stack_get_current_data(msg)) != NULL) {
-        log_printf(0, "ALL DIN %p\n", f);
-        tbx_log_flush();
-
         n += f->len;
         tbx_stack_move_down(msg);
     }
