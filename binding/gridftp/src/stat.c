@@ -31,6 +31,7 @@ int plugin_stat(lstore_handle_t *h, tbx_stack_t *stack, const char *path,
                     int file_only) {
     gridftp_printf("Plugin Stat\n");
     int retval = 1;
+    GlobusGFSName(globus_l_gfs_lstore_stat_plugin_stat);
 
     // Extract the LStore-specific path
     const char *lstore_path = path_to_lstore(h->prefix, path);
@@ -50,10 +51,14 @@ int plugin_stat(lstore_handle_t *h, tbx_stack_t *stack, const char *path,
     }
 
     char *readlink = NULL;
-    gridftp_printf("Beginning stat\n");
+    gridftp_printf("Beginning stat of %s -> %s\n", path, path_copy);
     retval = lio_stat(lio_gc, lio_gc->creds, path_copy, file_info, h->prefix, &readlink);
     gridftp_printf("Got stat: %d\n", retval);
-    if (retval) {
+    if (retval == -ENOENT) {
+        // Nothing to see here
+        retval = GlobusGFSErrorSystemError("stat", errno);
+        gridftp_printf("No ent: %d\n", retval);
+    } else if (retval) {
         gridftp_printf("Bad stat: %d\n", retval);
     }
     

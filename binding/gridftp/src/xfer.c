@@ -61,7 +61,7 @@ int plugin_xfer_init(lstore_handle_t *h,
     }
 
     if (transfer_info->alloc_size > 0) {
-        gop_sync_exec(lio_truncate_op(h->fd, -transfer_info->alloc_size));
+        gop_sync_exec(lio_truncate_gop(h->fd, -transfer_info->alloc_size));
     }
     return retval;
 

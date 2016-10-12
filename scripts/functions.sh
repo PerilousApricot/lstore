@@ -146,8 +146,8 @@ function get_cmake_tarballs(){
     if [ ! -d ${LSTORE_TARBALL_ROOT} ]; then
         mkdir ${LSTORE_TARBALL_ROOT}
     fi
-    curl https://cmake.org/files/v3.3/cmake-3.3.2-Linux-x86_64.tar.gz > \
-            ${LSTORE_TARBALL_ROOT}/cmake-3.3.2-Linux-x86_64.tar.gz
+    curl https://cmake.org/files/v3.5/cmake-3.5.2-Linux-x86_64.tar.gz > \
+            ${LSTORE_TARBALL_ROOT}/cmake-3.5.2-Linux-x86_64.tar.gz
 }
 
 
