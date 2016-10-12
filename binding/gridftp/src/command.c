@@ -68,7 +68,11 @@ int plugin_rm(lstore_handle_t *h, char *path) {
     if (retval == -ENOENT) {
         return 0;
     }
+<<<<<<< Updated upstream
     retval = gop_sync_exec(lio_remove_gop(lio_gc, lio_gc->creds, path,
+=======
+    retval = gop_sync_exec(lio_remove_op(lio_gc, lio_gc->creds, path,
+>>>>>>> Stashed changes
                                                 NULL, 0));
     return retval;
 }
