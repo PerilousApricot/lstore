@@ -66,6 +66,7 @@ int activate() {
         }
     }
     *dest = '\0';
+    globus_free(local_host);
     lfs_statsd_link = statsd_init_with_namespace("10.0.32.126", 8125, statsd_namespace);
 
     return 0;
@@ -74,6 +75,7 @@ int activate() {
 int deactivate() {
     log_printf(0,"Unloaded\n");
     lio_shutdown();
+    statsd_finalize(lfs_statsd_link);
     return 0;
 }
 
@@ -130,6 +132,7 @@ int user_stat(lstore_handle_t *h, globus_gfs_stat_info_t *info,
     int retcode = plugin_stat(h, stack, info->pathname, info->file_only);
     if (retcode) {
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Couldnt plugin_stat\n");
+        retval = retcode;
         goto error_stat;
     }
 
@@ -170,6 +173,7 @@ int user_command(lstore_handle_t *h, globus_gfs_command_info_t * info,
     }
     switch (info->command) {
         case GLOBUS_GFS_CMD_CKSM:
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Got command cksum\n");
             if (!strcmp(info->cksm_alg, "adler32") ||
                 !strcmp(info->cksm_alg, "ADLER32")) {
                 retval = plugin_checksum(h, path_copy, response);
@@ -178,18 +182,22 @@ int user_command(lstore_handle_t *h, globus_gfs_command_info_t * info,
             }
             break;
         case GLOBUS_GFS_CMD_DELE:
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Got command dele\n");
             retval = plugin_rm(h, path_copy);
             break;
         case GLOBUS_GFS_CMD_MKD:
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Got command mkd\n");
             retval = plugin_mkdir(h, path_copy);
             break;
         case GLOBUS_GFS_CMD_RMD:
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Got command rmd\n");
             retval = plugin_rmdir(h, path_copy);
             break;
         default:
             retval = -2;
     }
     free(path_copy);
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Got command %d and ret %d\n", info->command, retval);
     return retval;
 }
 
@@ -239,7 +247,7 @@ static void human_readable_adler32(char *adler32_human, uLong adler32) {
         adler32_ptr++;
         adler32_ptr++;
     }
-    adler32_ptr = '\0';
+    adler32_ptr = NULL;
 }
 
 void user_xfer_close(lstore_handle_t *h) {
@@ -375,7 +383,7 @@ int user_xfer_pump(lstore_handle_t *h,
             reg_idx[count].buffer = (globus_byte_t *)buf_idx[count];
             reg_idx[count].nbytes = nbytes;
             reg_idx[count].offset = offset;
-            if ((nbytes == 0)) {
+            if (nbytes == 0) {
                 // got EOF
                 user_handle_done(h, XFER_ERROR_NONE);
             }
@@ -439,6 +447,7 @@ lstore_handle_t *user_handle_new(int *retval_ext) {
     h->prefix = strdup("/lio/lfs");
     h->done = GLOBUS_FALSE;
     h->error = XFER_ERROR_NONE;
+    h->rc = GLOBUS_SUCCESS;
     if (!h->prefix) {
         (*retval_ext) = -4;
         return NULL;

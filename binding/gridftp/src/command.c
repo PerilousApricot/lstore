@@ -62,7 +62,13 @@ int plugin_rmdir(lstore_handle_t *h, char *path) {
 }
 
 int plugin_rm(lstore_handle_t *h, char *path) {
-    int retval = gop_sync_exec(lio_remove_gop(lio_gc, lio_gc->creds, path,
+    struct stat file_info;
+    char *readlink = NULL;
+    int retval = lio_stat(lio_gc, lio_gc->creds, path, &file_info, h->prefix, &readlink);
+    if (retval == -ENOENT) {
+        return 0;
+    }
+    retval = gop_sync_exec(lio_remove_gop(lio_gc, lio_gc->creds, path,
                                                 NULL, 0));
     return retval;
 }

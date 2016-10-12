@@ -43,24 +43,6 @@ int main() {
     transfer_info.pathname = test_pathname;
     CHECK_EQUAL(user_recv_init(handle, &transfer_info), 0);
 
-    char *buf_10[10];
-    memset(buf_10, '\0', sizeof(buf_10));
-    int buf_len_10 = 10;
-    CHECK_EQUAL(user_xfer_pump(handle, buf_10, &buf_len_10), 0);
-    printf("Received %d buffer objects\n", buf_len_10);
-    for (int i = 0; i < 10; ++i) {
-        if (i >= handle->optimal_count) {
-            CHECK_EQUAL(buf_10[i], NULL);
-        }
-        printf("  %d: %p\n", i, buf_10[i]);
-    }
-
-    // In principle, Globus should make the following callbacks:
-    memset(buf_10[0], '\1', handle->block_size);
-    memset(buf_10[1], '\2', handle->block_size);
-    CHECK_EQUAL(user_recv_callback(handle, buf_10[0], handle->block_size, 0), 0);
-    CHECK_EQUAL(user_recv_callback(handle, buf_10[1], handle->block_size, handle->block_size), 0);
-
     // Close and reconnect to flush the data to disk
     CHECK_EQUAL(user_close(handle), 0);
     handle = user_connect(op, &retcode);

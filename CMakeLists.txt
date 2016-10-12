@@ -113,10 +113,6 @@ set(CMAKE_INSTALL_RPATH "\$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
 # Defines
 set(USE_SUPERBUILD ON)
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -D_REENTRANT -D_GNU_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64 -fvisibility=hidden -fno-strict-aliasing -Wall -Wextra -Werror -Wno-unused-parameter -Wno-deprecated-declarations -Wno-error=sign-compare")
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--exclude-libs,ALL")
-endif()
-
 
 # Handle enabling LTO
 if(ENABLE_LTO)
@@ -145,15 +141,15 @@ else()
 endif()
 
 if(ENABLE_ASAN)
-    set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")
-    set(LSTORE_SANITIZE_LINK_FLAGS "${LSTORE_SANITIZE_LINK_FLAGS} -fsanitize=address")
+    set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls -shared-libasan")
+    set(LSTORE_SANITIZE_LINK_FLAGS "${LSTORE_SANITIZE_LINK_FLAGS} -fsanitize=address -lasan")
 endif()
 if(ENABLE_MSAN)
     set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1")
     set(LSTORE_SANITIZE_LINK_FLAGS "${LSTORE_SANITIZE_LINK_FLAGS} -fsanitize=memory")
 endif()
 if(ENABLE_TSAN)
-    set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fsanitize=thread -fno-omit-frame-pointer")
+    set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fsanitize=thread -fno-omit-frame-pointer -fPIC")
     set(LSTORE_SANITIZE_LINK_FLAGS "${LSTORE_SANITIZE_LINK_FLAGS} -fsanitize=thread")
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fPIE -pie")
@@ -176,6 +172,11 @@ if(ENABLE_COVERAGE)
         DEPENDS run-tests
         COMMENT "Executes code coverage tests")
 endif()
+
+if(("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GCC") AND (NOT LSTORE_SANITIZE_FLAGS))
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--exclude-libs,ALL")
+endif()
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${LSTORE_SANITIZE_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LSTORE_SANITIZE_LINK_FLAGS}")
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${LSTORE_SANITIZE_LINK_FLAGS}")
