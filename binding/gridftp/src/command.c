@@ -20,6 +20,7 @@
  */
 
 #include <lio/lio.h>
+#include <string.h>
 
 #include "lstore_dsi.h"
 
@@ -32,22 +33,21 @@ int plugin_checksum(lstore_handle_t *h, char *path, char **response) {
      */
     int buf_length = 9 * sizeof(char);
     char *buf = malloc(buf_length);
-    if (!buf) {
-        return -1;
-    }
-
     retval = lio_getattr(lio_gc,
                             lio_gc->creds,
                             path,
                             NULL,
                             "user.gridftp.adler32",
-                            (void **) buf,
+                            (void **) &buf,
                             &buf_length);
-    if (!retval) {
-        (*response) = buf;
-    }
 
-    return retval;
+    if (retval != OP_STATE_SUCCESS) {
+        const char *errstr2 = "-FAIL-";
+        memcpy(buf, errstr2, strlen(errstr2) + 1);
+    }
+    (*response) = buf;
+
+    return (retval == OP_STATE_SUCCESS) ? 0 : -3;
 }
 
 int plugin_mkdir(lstore_handle_t *h, char *path) {
