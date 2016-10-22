@@ -261,6 +261,7 @@ struct lstore_handle_t {
     int optimal_count;
     int outstanding_count;
     int done;
+    int done_sent;
     xfer_error_t error;
     char *expected_checksum;
     globus_mutex_t mutex;

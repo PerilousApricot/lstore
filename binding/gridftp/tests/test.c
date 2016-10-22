@@ -24,7 +24,9 @@
 #include "lstore_dsi.h"
 
 #define CHECK_EQUAL(V1,V2) if ((V1) != (V2)) { printf( #V1 " != " #V2 "\n" ); return 1; }
-#define TEST_PREFIX "/lio/lfs/unittest/"
+#define CHECK_UNEQUAL(V1,V2) if ((V1) == (V2)) { printf( #V1 " == " #V2 "\n" ); return 1; }
+#define TEST_PREFIX "/unittest/"
+#define LSTORE_PREFIX "/lio/lfs/"
 
 int main() {
     printf("Hello, World!\n");
@@ -39,15 +41,40 @@ int main() {
     // Try to send a file to LStore
     globus_gfs_transfer_info_t transfer_info;
     memset(&transfer_info, '\0', sizeof(transfer_info));
-    char *test_pathname = "/lio/lfs/unittest-file";
-    transfer_info.pathname = test_pathname;
+    char *test_pathname = TEST_PREFIX"unittest-file";
+    //char *fake_pathname = TEST_PREFIX"NONEXISTANT-file";
+    char *test_pathname_full = LSTORE_PREFIX TEST_PREFIX"unittest-file";
+    char *fake_pathname_full = LSTORE_PREFIX TEST_PREFIX"NONEXISTANT-file";
+    transfer_info.pathname = test_pathname_full;
     CHECK_EQUAL(user_recv_init(handle, &transfer_info), 0);
+
+    lio_setattr(lio_gc, lio_gc->creds, test_pathname, NULL,
+                            "user.gridftp.adler32",
+                            "abc123", strlen("abc123") + 1);
 
     // Close and reconnect to flush the data to disk
     CHECK_EQUAL(user_close(handle), 0);
     handle = user_connect(op, &retcode);
     CHECK_EQUAL(retcode, 0);
 
+
+    globus_gfs_command_info_t command_info;
+    memset(&command_info, '\0', sizeof(command_info));
+    char *response = (char *) 42;
+
+    command_info.pathname = fake_pathname_full;
+    command_info.command = GLOBUS_GFS_CMD_CKSM;
+    command_info.cksm_alg = "adler32";
+    retcode = user_command(handle, &command_info, &response);
+    printf("1checksum retcode: %d %s %p\n", retcode, response, &response);
+
+    response = (char *) 42;
+    command_info.pathname = test_pathname_full;
+    retcode = user_command(handle, &command_info, &response);
+    printf("2checksum retcode: %d, %d\n", retcode, OP_STATE_SUCCESS);
+    CHECK_UNEQUAL(response, (char *)42);
+    printf("3checksum retcode: %s %p %p\n", response, response, &response);
+    
     // Verify stat works
     globus_gfs_stat_info_t stat_info;
     memset(&stat_info, 42, sizeof(stat_info));

@@ -75,7 +75,7 @@ int activate() {
 int deactivate() {
     log_printf(0,"Unloaded\n");
     lio_shutdown();
-    statsd_finalize(lfs_statsd_link);
+    //statsd_finalize(lfs_statsd_link);
     return 0;
 }
 
@@ -252,13 +252,16 @@ static void human_readable_adler32(char *adler32_human, uLong adler32) {
 
 void user_xfer_close(lstore_handle_t *h) {
     if (h->fd) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 1Closing: %s\n", h->path);
         time_t close_timer;
         STATSD_TIMER_RESET(close_timer);
         if (gop_sync_exec(lio_close_gop(h->fd)) != OP_STATE_SUCCESS) {
             STATSD_TIMER_POST("lfs_close_time", close_timer);
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2Closing: %s\n", h->path);
             h->error = XFER_ERROR_DEFAULT;
         } else if (h->xfer_direction == XFER_RECV) {
             STATSD_TIMER_POST("lfs_close_time", close_timer);
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2Closing: %s\n", h->path);
             int bottom = 0;
             size_t i = 0;
             int keep_going = 1;
@@ -288,6 +291,7 @@ void user_xfer_close(lstore_handle_t *h) {
                             "user.gridftp.success", "okay", 4);
 
         } else {
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2Closing: %s\n", h->path);
             STATSD_TIMER_POST("lfs_close_time", close_timer);
         }
     } else {
