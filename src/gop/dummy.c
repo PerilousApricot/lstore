@@ -76,7 +76,7 @@ tbx_stack_t *gd_stack = NULL;
 // gd_thread_func - gop_dummy execution thread.  Just calls the
 //   gop_mark_completed() routine for the gops
 //***********************************************************************
-#if 0
+
 static void *gd_thread_func(apr_thread_t *th, void *data)
 {
     gop_op_generic_t *gop;
@@ -98,7 +98,7 @@ static void *gd_thread_func(apr_thread_t *th, void *data)
 
     return(NULL);
 }
-#endif
+
 
 //***********************************************************************
 // gop_dummy_init - Initializes the gop_dummy portal
@@ -113,7 +113,7 @@ void gop_dummy_init()
     gd_stack = tbx_stack_new();
 
     //** and launch the thread
-    //tbx_thread_create_assert(&gd_thread, NULL, gd_thread_func, NULL, gd_pool);
+    tbx_thread_create_assert(&gd_thread, NULL, gd_thread_func, NULL, gd_pool);
 }
 
 //***********************************************************************
@@ -122,7 +122,7 @@ void gop_dummy_init()
 
 void gop_dummy_destroy()
 {
-    //apr_status_t tstat;
+    apr_status_t tstat;
 
     //** Signal a shutdown
     apr_thread_mutex_lock(gd_lock);
@@ -131,7 +131,7 @@ void gop_dummy_destroy()
     apr_thread_mutex_unlock(gd_lock);
 
     //** Wait for the thread to complete
-    //apr_thread_join(&tstat, gd_thread);
+    apr_thread_join(&tstat, gd_thread);
 
     //** Clean up;
     tbx_stack_free(gd_stack, 0);
