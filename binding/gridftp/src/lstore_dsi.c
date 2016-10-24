@@ -484,7 +484,6 @@ int
 globus_l_gfs_lstore_deactivate(void)
 {
     GlobusGFSName(globus_l_gfs_lstore_deactivate);
-    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] deactivate\n");
     globus_result_t result = GLOBUS_SUCCESS;
 
     globus_extension_registry_remove(
@@ -546,11 +545,6 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
     if (h->outstanding_count == 0) {
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump @ 0, will pump %d.\n", concurrency_needed);
     }
-    // else if (concurrency_needed > 0) {
-    //    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump > 0, will pump %d.\n", concurrency_needed);
-    //} else {
-    //    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump > 0, will pump %d. opt: %d out: %d.\n", concurrency_needed, h->optimal_count, h->outstanding_count);
-    //}
     for (int i = 0; ((i < concurrency_needed) && !h->done); ++i) {
         // alloc (USER CODE)
         globus_byte_t *buf = globus_malloc(h->block_size);
@@ -565,11 +559,8 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
                                        h->block_size,
                                        gfs_recv_callback,
                                        h);
-            //if (rc == GLOBUS_SUCCESS) {
-                // inc outstanding
-                //globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump1\n");
-                ++(h->outstanding_count);
-            //} else {
+            // inc outstanding
+            ++(h->outstanding_count);
             if (rc != GLOBUS_SUCCESS) {
                 // failed to register
                 user_handle_done(h, XFER_ERROR_DEFAULT);
@@ -614,13 +605,9 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
                                                             -1,
                                                             gfs_send_callback,
                                                             h);
-                //if (rc == GLOBUS_SUCCESS) {
-                    // inc outstanding
-                    //globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump1\n");
-                    ++(h->outstanding_count);
-                    // int offset
-                    h->offset += nbytes;
-                //} 
+                ++(h->outstanding_count);
+                // int offset
+                h->offset += nbytes;
                 if (rc != GLOBUS_SUCCESS) {
                     // failed to add the write
                     globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] ERROR in register_write: %d %p %d %d\n", rc, buf, nbytes, h->offset);
