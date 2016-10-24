@@ -184,15 +184,15 @@ globus_l_gfs_lstore_trev(
     GlobusGFSName(globus_l_gfs_lstore_trev);
 
     lstore_handle = (lstore_handle_t *) user_arg;
-    globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "Recieved a transfer event.\n");
+    globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "[lstore] Recieved a transfer event.\n");
 
     switch (event_info->type) {
         case GLOBUS_GFS_EVENT_TRANSFER_ABORT:
-            globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "Got an abort request to the lstore client.\n");
+            globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "[lstore] Got an abort request to the lstore client.\n");
             user_handle_done(lstore_handle, XFER_ERROR_DEFAULT);
             break;
         default:
-            globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "Got some other transfer event %d.\n", event_info->type);
+            globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "[lstore] Got some other transfer event %d.\n", event_info->type);
     }
 }
 
