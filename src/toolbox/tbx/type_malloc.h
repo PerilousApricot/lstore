@@ -27,8 +27,7 @@
             tbx_type_malloc(var, type, count)
 #define tbx_type_malloc(var, type, count) \
             do { \
-                var = (type *)malloc((count) * sizeof(type)); \
-                memset(var, 0, (count)*sizeof(type)); \
+                var = (type *)calloc(count, sizeof(type)); \
                 FATAL_UNLESS(var != NULL); \
             } while(0) \
 
