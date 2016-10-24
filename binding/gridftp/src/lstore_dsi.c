@@ -538,7 +538,14 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
     GlobusGFSName(gfs_xfer_pump);
 
     globus_result_t rc = GLOBUS_SUCCESS;
-    int concurrency_needed = h->optimal_count - h->outstanding_count + 1;
+    if (h->xfer_direction == XFER_RECV) {
+        int old_count = h->optimal_count;
+        globus_gridftp_server_get_optimal_concurrency(h->op, &h->optimal_count);
+        if (old_count != h->optimal_count) {
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Optimal %d -> %d.\n", old_count, h->optimal_count);
+        }
+    }
+    int concurrency_needed = h->optimal_count - h->outstanding_count;
     concurrency_needed = my_min(MAX_CONCURRENCY_PER_LOOP, concurrency_needed);
     concurrency_needed = my_max(0, concurrency_needed);
     // for pump (concur && (!done, read)
