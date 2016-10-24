@@ -732,11 +732,6 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
             }
         }
     }
-    // free buffer (USER CORE)
-    globus_free(buffer);
-    // dec outstanding
-    //globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump2\n");
-    --(h->outstanding_count);
     /*
      * The transfer is done when h->done is set and h->outstanding_count reaches
      * zero
@@ -746,6 +741,12 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
      */
 
 cleanup:
+    // free buffer (USER CORE)
+    globus_free(buffer);
+    // dec outstanding
+    --(h->outstanding_count);
+
+
     if (h->done && (h->outstanding_count == 0)) {
         user_xfer_close(h);
         if (!h->done_sent && (h->error == XFER_ERROR_NONE)) {
