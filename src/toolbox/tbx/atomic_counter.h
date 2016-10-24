@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 // Types
-typedef apr_uint32_t tbx_atomic_unit32_t;
+typedef volatile apr_uint32_t tbx_atomic_unit32_t;
 
 // Functions
 TBX_API int tbx_atomic_counter(tbx_atomic_unit32_t *counter);

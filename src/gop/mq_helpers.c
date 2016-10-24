@@ -42,9 +42,9 @@ static tbx_atomic_unit32_t _id_counter = 0;
 
 gop_mq_frame_t *mq_make_id_frame()
 {
-    tbx_atomic_unit32_t *id;
+    uint32_t *id;
 
-    tbx_type_malloc(id, tbx_atomic_unit32_t, 1);
+    tbx_type_malloc(id, uint32_t, 1);
 
     *id = tbx_atomic_inc(_id_counter);
 
@@ -52,7 +52,7 @@ gop_mq_frame_t *mq_make_id_frame()
         tbx_atomic_set(_id_counter, 0);
     }
 
-    return(gop_mq_frame_new(id, sizeof(tbx_atomic_unit32_t), MQF_MSG_AUTO_FREE));
+    return(gop_mq_frame_new(id, sizeof(uint32_t), MQF_MSG_AUTO_FREE));
 }
 
 
