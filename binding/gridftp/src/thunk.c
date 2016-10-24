@@ -251,7 +251,7 @@ static void human_readable_adler32(char *adler32_human, uLong adler32) {
 }
 
 void user_xfer_close(lstore_handle_t *h) {
-    if (h->fd) {
+    if (h->fd && (h->closed == 0)) {
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 1Closing: %s\n", h->path);
         time_t close_timer;
         STATSD_TIMER_RESET(close_timer);
@@ -289,12 +289,12 @@ void user_xfer_close(lstore_handle_t *h) {
             // Final flag to say everything is okay
             lio_setattr(lio_gc, lio_gc->creds, h->path, NULL,
                             "user.gridftp.success", "okay", 4);
-
+            h->closed = 1;
         } else {
             globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2Closing: %s\n", h->path);
             STATSD_TIMER_POST("lfs_close_time", close_timer);
         }
-    } else {
+    } else if (h->closed == 0) {
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Missing FD in CB??\n");
         h->error = XFER_ERROR_DEFAULT;
     }  
