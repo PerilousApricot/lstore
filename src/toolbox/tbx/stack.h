@@ -61,10 +61,21 @@ struct tbx_stack_ele_t {
     struct tbx_stack_ele_t *down, *up;
 };
 
+#define TBX_STACK_MEMBERS \
+    tbx_stack_ele_t *top, *bottom, *curr; \
+    int n;
+
+struct tbx_stack_test_t {
+    TBX_STACK_MEMBERS
+};
+
 struct tbx_stack_t {
     tbx_stack_ele_t *top, *bottom, *curr;
     int n;
+    char padding[4096 - sizeof(struct tbx_stack_test_t)];
 };
+
+#undef TBX_STACK_MEMBERS
 
 
 #ifdef __cplusplus

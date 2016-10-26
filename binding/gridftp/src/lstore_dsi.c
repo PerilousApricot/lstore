@@ -63,7 +63,12 @@ globus_version_t local_version =
     LSTORE_DSI_TIMESTAMP,
     0 /* branch ID */
 };
-
+static void
+handler(int sig, siginfo_t *si, void *unused)
+{
+    globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "Got SIGSEGV at address: %p\n", si->si_addr);
+    exit(EXIT_FAILURE);
+}
 #define MSG_SIZE 2048
 static
 void
@@ -92,12 +97,13 @@ gridftp_check_core()
     }
 
     // Reset signal handler:
-    sig_t sigerr = signal (SIGSEGV, SIG_DFL);
-    if (sigerr == SIG_ERR) {
-        globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "Unable to set core handler.\n");
-    }
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(struct sigaction));
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+    sa.sa_sigaction = handler;
+    sigaction(SIGSEGV, &sa, NULL);
 }
-
 /*
  * start
  * -----
