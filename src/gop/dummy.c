@@ -69,7 +69,7 @@ apr_thread_t *gd_thread = NULL;
 apr_pool_t *gd_pool = NULL;
 apr_thread_mutex_t *gd_lock = NULL;
 apr_thread_cond_t *gd_cond = NULL;
-tbx_stack_t *gd_stack = NULL;
+static tbx_stack_t *gd_stack = NULL;
 
 
 //***********************************************************************
@@ -111,7 +111,7 @@ void gop_dummy_init()
     assert_result(apr_thread_mutex_create(&gd_lock, APR_THREAD_MUTEX_DEFAULT, gd_pool), APR_SUCCESS);
     assert_result(apr_thread_cond_create(&gd_cond, gd_pool), APR_SUCCESS);
     gd_stack = tbx_stack_new();
-
+    
     //** and launch the thread
     tbx_thread_create_assert(&gd_thread, NULL, gd_thread_func, NULL, gd_pool);
 }

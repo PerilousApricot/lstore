@@ -20,12 +20,17 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 
 #include "skiplist.h"
 #include "tbx/assert_result.h"
 #include "tbx/log.h"
 #include "tbx/tbx_decl.h"
 #include "tbx/type_malloc.h"
+
+// Debug memory corruption
+#define MPROTECT_SELF(X) do { mprotect(X, sizeof(tbx_sl_t), PROT_READ | PROT_WRITE | PROT_EXEC); log_printf(0, "mprotect: %p\n", X); } while (0)
+#define MUNPROTECT_SELF(X)  do { mprotect(X, sizeof(tbx_sl_t), PROT_READ | PROT_WRITE | PROT_EXEC); log_printf(0, "munprotect: %p\n", X);} while (0)
 
 // Forward declarations
 void destroy_skiplist_node(tbx_sl_t *sl, tbx_sl_node_t *sn);
@@ -46,8 +51,9 @@ tbx_sl_compare_t skiplist_compare_ptr= {skiplist_compare_fn_ptr, NULL};
 //******************************************************************************
 TBX_MALLOC tbx_sl_t *tbx_sl_malloc()
 {
-    tbx_sl_t *sl = (tbx_sl_t *)malloc(sizeof(tbx_sl_t));
-    if (!sl) // Do we log here?
+    tbx_sl_t *sl;
+    // Do we log here?
+    if (posix_memalign((void **) &sl, 4096, sizeof(tbx_sl_t)))
         goto error_1;
 
     apr_status_t ret = apr_pool_create(&(sl->pool), NULL);
@@ -86,6 +92,7 @@ void tbx_sl_del(tbx_sl_t * self)
     tbx_sl_fini(self);
     apr_thread_mutex_destroy(self->lock);
     apr_pool_destroy(self->pool);
+    MUNPROTECT_SELF(self);
     free(self);
 }
 
@@ -145,6 +152,7 @@ int tbx_sl_init_full(tbx_sl_t * self,
     if (!self->head)
         goto error_1;
 
+    MPROTECT_SELF(self);
     return 0;
 
 error_1:
@@ -347,6 +355,7 @@ int skiplist_element_count(tbx_sl_t *sl)
 void tbx_sl_empty(tbx_sl_t *sl)
 {
     tbx_sl_node_t *sn, *sn2;
+    MUNPROTECT_SELF(sl);
 
     log_printf(15, "sl=%p\n", sl);
 
@@ -367,6 +376,7 @@ void tbx_sl_empty(tbx_sl_t *sl)
         sn = sn->next[0];
         destroy_skiplist_node(sl, sn2);
     }
+    MPROTECT_SELF(sl);
 
     return;
 }
@@ -499,6 +509,7 @@ int tbx_sl_insert(tbx_sl_t *sl, tbx_sl_key_t *key, tbx_sl_data_t *data)
 
     memset(ptr, 0, sizeof(ptr));
     cmp = find_key(sl, ptr, key, 0);
+    MUNPROTECT_SELF(sl);
     if (cmp == 0) {  //** Already a node with this value
         sn = ptr[0]->next[0];
         if (sl->allow_dups == 0) {
@@ -511,6 +522,7 @@ int tbx_sl_insert(tbx_sl_t *sl, tbx_sl_key_t *key, tbx_sl_data_t *data)
             sn->ele.next = se;
             sl->n_ele++;
         }
+        MPROTECT_SELF(sl);
 
         return(0);
     }
@@ -518,6 +530,7 @@ int tbx_sl_insert(tbx_sl_t *sl, tbx_sl_key_t *key, tbx_sl_data_t *data)
     sl->n_keys++;
     sl->n_ele++;
     sn = pos_tbx_sl_insert(sl, ptr, key, data);
+    MPROTECT_SELF(sl);
     if (sn == NULL) return(-1);
 
     return(0);
@@ -551,6 +564,7 @@ int tbx_sl_remove(tbx_sl_t *sl, tbx_sl_key_t *key, tbx_sl_data_t *data)
     log_printf(15, "remove_skiplist: list=%p\n", sl);
 
     se = &(ptr[0]->next[0]->ele);
+    MUNPROTECT_SELF(sl);
     if (data == NULL) {  //** Free all the data blocks
         found = 1;
         sl->n_ele--;
@@ -622,6 +636,7 @@ int tbx_sl_remove(tbx_sl_t *sl, tbx_sl_key_t *key, tbx_sl_data_t *data)
     }
 
     found = (found == 1) ? 0 : 1;
+    MPROTECT_SELF(sl);
     return(found);
 }
 
@@ -793,6 +808,7 @@ int iter_tbx_sl_remove(tbx_sl_iter_t *it)
     if (it->curr == NULL) return(1);
 
     empty_node = 0;
+    MUNPROTECT_SELF(it->sl);
     if (it->curr == &(it->sn->ele)) { //** Deleting the initial node
         it->sn->ele.data = NULL;
         if (it->sn->ele.next != NULL) {
@@ -841,6 +857,7 @@ int iter_tbx_sl_remove(tbx_sl_iter_t *it)
 
     it->curr = NULL;
 
+    MPROTECT_SELF(it->sl);
     return(0);
 }
 

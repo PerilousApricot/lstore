@@ -14,6 +14,8 @@
    limitations under the License.
 */
 
+#include <stdlib.h>
+#include <tbx/log.h>
 #include <tbx/visibility.h>
 
 #pragma once
@@ -43,8 +45,8 @@
 
 #define TBX_TYPE_NEW_DEFAULT(TYPENAME, FUNCNAME) \
     TYPENAME * FUNCNAME ## _new() { \
-        TYPENAME * self = malloc(sizeof(TYPENAME)); \
-        if (!self) { \
+        TYPENAME * self; \
+        if (posix_memalign((void **)&self, 4096, sizeof(TYPENAME))) { \
             return NULL; \
         } \
         int ret = FUNCNAME ## _init(self); \
@@ -58,6 +60,8 @@
 #define TBX_TYPE_DEL_DEFAULT(TYPENAME, FUNCNAME) \
     void FUNCNAME ## _del(TYPENAME * self) { \
         if (self) { \
+            log_printf(0, "munprotect: %p\n", self); \
+            mprotect(self, sizeof(self), PROT_READ | PROT_WRITE | PROT_EXEC); \
             free(self); \
         } \
     }
