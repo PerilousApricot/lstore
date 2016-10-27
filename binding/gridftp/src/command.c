@@ -54,7 +54,7 @@ int plugin_mkdir(lstore_handle_t *h, char *path) {
     size_t len = strlen(path);
     size_t pos = 1;
     int retval = 0;
-    while (pos < len) {
+    while (pos <= len) {
         size_t loc = strcspn(&path[pos], "/");
         if (loc == 0) {
             pos++;
@@ -67,7 +67,7 @@ int plugin_mkdir(lstore_handle_t *h, char *path) {
         if (!retval) {
             break;
         }
-        pos += loc + 2;
+        pos = loc + pos;
     }
     if ((retval == 0) || (retval == 10) || (retval == 20)) {
         return 0;
