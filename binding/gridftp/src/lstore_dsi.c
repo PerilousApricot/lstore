@@ -102,7 +102,8 @@ gridftp_check_core()
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
     sa.sa_sigaction = handler;
-    sigaction(SIGSEGV, &sa, NULL);
+    signal(SIGSEGV, SIG_DFL);
+    //sigaction(SIGSEGV, &sa, NULL);
 }
 /*
  * start
@@ -169,7 +170,6 @@ globus_l_gfs_lstore_destroy(
     lstore_handle_t *       lstore_handle;
 
     GlobusGFSName(globus_l_gfs_lstore_destroy);
-    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] destroy\n");
     lstore_handle = (lstore_handle_t *) user_arg;
 
     // Set any needed options in handle here
@@ -476,6 +476,7 @@ __attribute__((visibility ("default"))) GlobusExtensionDefineModule(globus_gridf
  * This interface function is called when the plugin is loaded (i.e. when
  * GridFTP starts)
  */
+
 static
 int
 globus_l_gfs_lstore_activate(void)
@@ -500,6 +501,7 @@ globus_l_gfs_lstore_activate(void)
         GlobusExtensionMyModule(globus_gridftp_server_lstore),
         &globus_l_gfs_lstore_dsi_iface);
 
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] activate OK: %d\n", result);
     return result;
 }
 
@@ -647,7 +649,9 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
                 h->offset += nbytes;
                 if (rc != GLOBUS_SUCCESS) {
                     // failed to add the write
-                    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] ERROR in register_write: %d %p %d %d\n", rc, buf, nbytes, h->offset);
+                    char *res_str = globus_error_print_friendly(globus_error_peek(rc));
+                    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] ERROR in register_write: %d %p %d %d: %s\n", rc, buf, nbytes, h->offset, res_str);
+                    globus_free(res_str);
                     user_handle_done(h, XFER_ERROR_DEFAULT);
                     h->rc = rc;
                     break;
@@ -689,8 +693,13 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
     globus_mutex_lock(&h->mutex);
     if (((offset == 0) && (h->xfer_direction == XFER_RECV)) || (result != 0) || (eof != 0) || (nbytes <= 0)) {
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO,
-                                "[lstore] gfs_CB xf: %d res: %d nb: %d off: %d eof: %d out: %d done: %d\n",
-                                h->xfer_direction, result, nbytes, offset, eof, h->outstanding_count, h->done);
+                                "[lstore] gfs_CB xf: %d res: %d nb: %d off: %d eof: %d out: %d done: %d fd: %p\n",
+                                h->xfer_direction, result, nbytes, offset, eof, h->outstanding_count, h->done, h->fd);
+        if (result != 0) {
+            char *res_str = globus_error_print_friendly(globus_error_peek(result));
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] gfs_CB result: %s\n", res_str);
+            globus_free(res_str);
+        }
     }
     if (h->done && h->rc != GLOBUS_SUCCESS && h->xfer_direction == XFER_RECV) {
         if (h->rc == GLOBUS_SUCCESS) {
@@ -803,7 +812,9 @@ cleanup:
             globus_gridftp_server_finished_transfer(h->op, GLOBUS_SUCCESS);
             h->done_sent = 1;
         } else if (!h->done_sent && (h->error != XFER_ERROR_NONE)) {
-            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] xfer failure: %d, %s\n", h->rc, h->path);
+            char *res_str = globus_error_print_friendly(globus_error_peek(result));
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] xfer failure: %d, %s. reason:\n", h->rc, h->path, res_str);
+            globus_free(res_str);
             if (h->rc == GLOBUS_SUCCESS) {
                 globus_gridftp_server_finished_transfer(h->op, GLOBUS_FAILURE);
             } else {

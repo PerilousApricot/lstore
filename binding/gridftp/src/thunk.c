@@ -68,6 +68,7 @@ int activate() {
     *dest = '\0';
     globus_free(local_host);
     lfs_statsd_link = statsd_init_with_namespace("10.0.32.126", 8125, statsd_namespace);
+    globus_free(statsd_namespace);
 
     return 0;
 }
@@ -205,9 +206,9 @@ int user_recv_init(lstore_handle_t *h,
                     globus_gfs_transfer_info_t * transfer_info) {
     /*
      * Configure buffers for checksumming
-     * Guess 10GB file length if we don't get an actual guess
+     * Guess 20GB file length if we don't get an actual guess
      */
-    long length_guess = (h->xfer_length > 0) ? h->xfer_length : (10*1024L*1024L*1024L);
+    long length_guess = (h->xfer_length > 0) ? h->xfer_length : (20*1024L*1024L*1024L);
     size_t num_adler = (length_guess / h->block_size) + 10;
     h->cksum_adler = globus_calloc(num_adler, sizeof(globus_size_t));
     h->cksum_offset = globus_calloc(num_adler, sizeof(globus_size_t));
@@ -257,7 +258,7 @@ void user_xfer_close(lstore_handle_t *h) {
         STATSD_TIMER_RESET(close_timer);
         if (gop_sync_exec(lio_close_gop(h->fd)) != OP_STATE_SUCCESS) {
             STATSD_TIMER_POST("lfs_close_time", close_timer);
-            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2Closing: %s\n", h->path);
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2Closing (failed): %s\n", h->path);
             h->error = XFER_ERROR_DEFAULT;
         } else if (h->xfer_direction == XFER_RECV) {
             STATSD_TIMER_POST("lfs_close_time", close_timer);
@@ -269,7 +270,7 @@ void user_xfer_close(lstore_handle_t *h) {
             uint32_t adler = adler32(0L, Z_NULL, 0);
             while (keep_going) {
                 keep_going = 0;
-                for (i = bottom;i < h->cksum_end_blocks ; ++i) {
+                for (i = bottom;i <= h->cksum_end_blocks ; ++i) {
                     if ((h->cksum_offset[i] == offset) && (h->cksum_nbytes[i] > 0)) {
                         adler = adler32_combine(adler,
                                                 h->cksum_adler[i],
@@ -279,6 +280,7 @@ void user_xfer_close(lstore_handle_t *h) {
                     }
                 }
             }
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2.5Closing: bytes: %zd path: %s\n", offset, h->path);
             // Update checksum
             char adler32_human[2*sizeof(uLong)+1];
             human_readable_adler32(adler32_human, adler);
@@ -293,11 +295,14 @@ void user_xfer_close(lstore_handle_t *h) {
         } else {
             globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2Closing: %s\n", h->path);
             STATSD_TIMER_POST("lfs_close_time", close_timer);
+            h->closed = 1;
         }
-    } else if (h->closed == 0) {
-        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Missing FD in CB??\n");
+    }
+    if (!h->fd) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Missing FD in close??: %p\n", h->fd);
         h->error = XFER_ERROR_DEFAULT;
     }  
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 3Closed: %s\n", h->path);
 }
 
 void user_xfer_callback(lstore_handle_t *h,
@@ -340,7 +345,7 @@ void user_xfer_callback(lstore_handle_t *h,
         }
     }
     if (!h->fd) {
-        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Missing FD??\n");
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Missing FD in CB??\n");
         user_handle_done(h, XFER_ERROR_DEFAULT);
     }
 
