@@ -50,12 +50,14 @@ int plugin_xfer_init(lstore_handle_t *h,
     if (!h->path) {
         goto error_alloc;
     }
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Before open: %p\n", h->fd);
     int retval = gop_sync_exec(lio_open_gop(lio_gc,
                                 lio_gc->creds,
                                 h->path,
                                 open_flags,
                                 NULL,
                                 &(h->fd), 60));
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] After open: %p ret: %d\n", h->fd, retval);
     if (retval != OP_STATE_SUCCESS || (!h->fd)) {
         goto error_open;
     }
@@ -69,6 +71,7 @@ error_open:
     free(h->path);
     h->path = NULL;
 error_alloc:
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Open failure\n", h->fd);
     return -1;
 }
 
