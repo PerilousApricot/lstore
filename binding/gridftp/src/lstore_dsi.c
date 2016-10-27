@@ -723,15 +723,34 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
         // Store the adler32 for this block
         uint32_t adler32_accum = adler32(0L, Z_NULL, 0);
         adler32_accum = adler32(adler32_accum, (const Bytef *)buffer, nbytes);
-        size_t adler32_idx = offset / h->block_size;
-        while (h->cksum_nbytes[adler32_idx] != 0) {
+        size_t adler32_idx = 0; // offset / h->block_size;
+        if (adler32_idx > h->cksum_blocks) {
+            adler32_idx = 0;
+        }
+        if (h->cksum_nbytes[adler32_idx] != 0) {
+            adler32_idx = 0;
+        }
+        while ((h->cksum_nbytes[adler32_idx] != 0)) {
+            if (adler32_idx == h->cksum_blocks) {
+                int new_count = h->cksum_blocks * 2;
+                globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Checksum blocks %d -> %d\n", h->cksum_blocks, new_count);
+
+                // FIXME: error handling
+                h->cksum_nbytes = globus_realloc(h->cksum_nbytes, new_count * sizeof(globus_size_t));
+                h->cksum_offset = globus_realloc(h->cksum_offset, new_count * sizeof(globus_size_t));
+                h->cksum_adler = globus_realloc(h->cksum_adler, new_count * sizeof(globus_size_t));
+                memset(&h->cksum_nbytes[h->cksum_blocks], 0, h->cksum_blocks * sizeof(globus_size_t));
+                memset(&h->cksum_offset[h->cksum_blocks], 0, h->cksum_blocks * sizeof(globus_size_t));
+                memset(&h->cksum_adler[h->cksum_blocks], 0, h->cksum_blocks * sizeof(globus_size_t));
+                h->cksum_blocks = new_count;
+            }
             ++adler32_idx;
         }
         h->cksum_nbytes[adler32_idx] = nbytes;
         h->cksum_offset[adler32_idx] = offset;
         h->cksum_adler[adler32_idx] = adler32_accum;
-        if (adler32_idx + 1 > h->cksum_end_blocks) {
-            h->cksum_end_blocks = adler32_idx + 1;
+        if (adler32_idx > h->cksum_end_blocks) {
+            h->cksum_end_blocks = adler32_idx;
         }
         if (offset + nbytes > h->cksum_total_len) {
             h->cksum_total_len = offset + nbytes;
