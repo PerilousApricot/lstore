@@ -16,6 +16,7 @@
 
 #define _log_module_index 111
 
+#include <globus_gridftp_server.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,11 +31,22 @@
 #define MOVE_BOTTOM  2
 #define MOVE_BOTH    3
 
-#define MPROTECT_SELF(X) do { mprotect(X, sizeof(tbx_stack_t), PROT_READ | PROT_EXEC); log_printf(0, "mprotect: %p\n", X); } while (0)
-#define MUNPROTECT_SELF(X)  do { mprotect(X, sizeof(tbx_stack_t), PROT_READ | PROT_WRITE | PROT_EXEC); log_printf(0, "munprotect: %p\n", X); } while (0)
+//#define MPROTECT_SELF(X) do { mprotect(X, sizeof(tbx_stack_t), PROT_READ | PROT_EXEC); log_printf(0, "mprotect: %p\n", X); } while (0)
+//#define MUNPROTECT_SELF(X)  do { mprotect(X, sizeof(tbx_stack_t), PROT_READ | PROT_WRITE | PROT_EXEC); log_printf(0, "munprotect: %p\n", X); } while (0)
+
+#define MPROTECT_SELF(X)
+#define MUNPROTECT_SELF(X)
+
+static inline void tbx_check_boom(tbx_stack_t *s) {
+    if (s->bottom == (tbx_stack_ele_t *) 0x20000 || s->top == (tbx_stack_ele_t *)0x20000 || s->curr == (tbx_stack_ele_t *)0x20000) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "Bad stack: %p\n", s);
+        abort();
+    }
+}
 
 // Accessors
 tbx_stack_ele_t * tbx_stack_get_top(tbx_stack_t * stack) {
+    tbx_check_boom(stack);
     return stack->top;
 }
 
@@ -61,6 +73,7 @@ int check_ends(tbx_stack_t *stack)
     status = 0;
     if (stack->curr == stack->top) status = status + MOVE_TOP;
     if (stack->curr == stack->bottom) status = status + MOVE_BOTTOM;
+    tbx_check_boom(stack);
 
     return(status);
 }
@@ -71,6 +84,7 @@ int check_ends(tbx_stack_t *stack)
 
 int tbx_stack_count(tbx_stack_t *stack)
 {
+    tbx_check_boom(stack);
     return(stack->n);
 }
 
@@ -101,6 +115,7 @@ void set_stack_ele_data(tbx_stack_ele_t *ele, void *data)
 void tbx_stack_empty(tbx_stack_t *stack, int data_also)
 {
     void *ptr;
+    tbx_check_boom(stack);
 
     if (data_also == 1) {
         while ((ptr = tbx_stack_pop(stack)) != NULL) {
@@ -136,6 +151,8 @@ void tbx_stack_dup(tbx_stack_t *new, tbx_stack_t *old)
         tbx_stack_push(new, ptr);
         tbx_stack_move_up(old);
     }
+    tbx_check_boom(new);
+    tbx_check_boom(old);
 }
 
 //***************************************************
@@ -144,6 +161,7 @@ void tbx_stack_dup(tbx_stack_t *new, tbx_stack_t *old)
 
 void tbx_stack_link_push(tbx_stack_t *stack, tbx_stack_ele_t *ele)
 {
+    tbx_check_boom(stack);
     ele->down = stack->top;
     ele->up = NULL;
     MUNPROTECT_SELF(stack);
@@ -171,7 +189,9 @@ void tbx_stack_push(tbx_stack_t *stack, void *data)
     ele = (tbx_stack_ele_t *)malloc(sizeof(tbx_stack_ele_t));
     ele->data = data;
 
+    tbx_check_boom(stack);
     tbx_stack_link_push(stack, ele);
+    tbx_check_boom(stack);
 }
 
 //***************************************************
@@ -181,6 +201,7 @@ void tbx_stack_push(tbx_stack_t *stack, void *data)
 tbx_stack_ele_t *pop_link(tbx_stack_t *stack)
 {
     tbx_stack_move_to_top(stack);
+    tbx_check_boom(stack);
 
     return(tbx_stack_unlink_current(stack, 0));
 }
@@ -191,6 +212,7 @@ tbx_stack_ele_t *pop_link(tbx_stack_t *stack)
 
 void *tbx_stack_pop(tbx_stack_t *stack)
 {
+    tbx_check_boom(stack);
     tbx_stack_ele_t *ele;
     void *data;
 
@@ -200,6 +222,7 @@ void *tbx_stack_pop(tbx_stack_t *stack)
     data = ele->data;
     free(ele);
 
+    tbx_check_boom(stack);
     return(data);
 
 }
@@ -210,6 +233,7 @@ void *tbx_stack_pop(tbx_stack_t *stack)
 
 tbx_stack_ele_t *tbx_stack_get_current_ptr(tbx_stack_t *stack)
 {
+    tbx_check_boom(stack);
 
     if (stack->curr) {
         return(stack->curr);
@@ -224,6 +248,7 @@ tbx_stack_ele_t *tbx_stack_get_current_ptr(tbx_stack_t *stack)
 
 void *tbx_stack_get_current_data(tbx_stack_t *stack)
 {
+    tbx_check_boom(stack);
 
     if (stack->curr) {
         return(stack->curr->data);
@@ -278,9 +303,11 @@ int tbx_stack_move_to_bottom(tbx_stack_t *stack)
 
 int tbx_stack_move_down(tbx_stack_t *stack)
 {
+    tbx_check_boom(stack);
     if (stack->curr) {
         MUNPROTECT_SELF(stack);
         stack->curr = stack->curr->down;
+        tbx_check_boom(stack);
         MPROTECT_SELF(stack);
         return(1);
     } else {
@@ -294,9 +321,11 @@ int tbx_stack_move_down(tbx_stack_t *stack)
 
 int tbx_stack_move_up(tbx_stack_t *stack)
 {
+    tbx_check_boom(stack);
     if (stack->curr) {
         MUNPROTECT_SELF(stack);
         stack->curr = stack->curr->up;
+        tbx_check_boom(stack);
         MPROTECT_SELF(stack);
         return(1);
     } else {
@@ -314,6 +343,7 @@ int insert_link_below(tbx_stack_t *stack, tbx_stack_ele_t *ele)
 {
     int move_ends;
     MUNPROTECT_SELF(stack);
+    tbx_check_boom(stack);
     move_ends = check_ends(stack);
     if (stack->curr) {
         stack->n++;
@@ -328,14 +358,17 @@ int insert_link_below(tbx_stack_t *stack, tbx_stack_ele_t *ele)
 
         stack->curr = ele;
         MPROTECT_SELF(stack);
+    tbx_check_boom(stack);
         return(1);
     } else if (stack->top) {
         printf("insert_link_below: Can't determine position!!!!!!!! move_ends = %d\n",move_ends);
         MPROTECT_SELF(stack);
+    tbx_check_boom(stack);
         return(0);         // Can't determine position since curr=NULL
     } else {
         tbx_stack_link_push(stack, ele);
         MPROTECT_SELF(stack);
+    tbx_check_boom(stack);
         return(1);
     }
 }
@@ -356,6 +389,7 @@ int tbx_stack_insert_below(tbx_stack_t *stack, void *data)
     int ret = insert_link_below(stack, ele);
     if (!ret)
         free(ele);
+    tbx_check_boom(stack);
     return ret;
 }
 
@@ -385,13 +419,16 @@ int tbx_stack_link_insert_above(tbx_stack_t *stack, tbx_stack_ele_t *ele)
 
         stack->curr = ele;
         MPROTECT_SELF(stack);
+    tbx_check_boom(stack);
         return(1);
     } else if (stack->top) {
         MPROTECT_SELF(stack);
+    tbx_check_boom(stack);
         return(0);         // Can't determine position since curr=NULL
     } else {
         tbx_stack_link_push(stack, ele);
         MPROTECT_SELF(stack);
+    tbx_check_boom(stack);
         return(1);
     }
 }
@@ -410,6 +447,7 @@ int tbx_stack_insert_above(tbx_stack_t *stack, void *data)
     int ret = tbx_stack_link_insert_above(stack, ele);
     if (!ret)
         free(ele);
+    tbx_check_boom(stack);
     return ret;
 }
 
@@ -445,9 +483,11 @@ tbx_stack_ele_t *tbx_stack_unlink_current(tbx_stack_t *stack, int mv_up)
         if ((move_ends == MOVE_BOTTOM) || (move_ends == MOVE_BOTH)) stack->bottom = up;
 
         MPROTECT_SELF(stack);
+        tbx_check_boom(stack);
         return(ele);
     } else {
         MPROTECT_SELF(stack);
+    tbx_check_boom(stack);
         return(NULL);
     }
 }
@@ -463,6 +503,7 @@ tbx_stack_ele_t *tbx_stack_unlink_current(tbx_stack_t *stack, int mv_up)
 int tbx_stack_delete_current(tbx_stack_t *stack, int mv_up, int data_also)
 {
     tbx_stack_ele_t *ele = tbx_stack_unlink_current(stack, mv_up);
+    tbx_check_boom(stack);
 
     if (ele != NULL) {
         if (data_also) free(ele->data);
