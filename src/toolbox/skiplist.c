@@ -29,8 +29,10 @@
 #include "tbx/type_malloc.h"
 
 // Debug memory corruption
-#define MPROTECT_SELF(X) do { mprotect(X, sizeof(tbx_sl_t), PROT_READ | PROT_WRITE | PROT_EXEC); log_printf(0, "mprotect: %p\n", X); } while (0)
-#define MUNPROTECT_SELF(X)  do { mprotect(X, sizeof(tbx_sl_t), PROT_READ | PROT_WRITE | PROT_EXEC); log_printf(0, "munprotect: %p\n", X);} while (0)
+// #define MPROTECT_SELF(X) do { mprotect(X, sizeof(tbx_sl_t), PROT_READ | PROT_WRITE | PROT_EXEC); log_printf(0, "mprotect: %p\n", X); } while (0)
+// #define MUNPROTECT_SELF(X)  do { mprotect(X, sizeof(tbx_sl_t), PROT_READ | PROT_WRITE | PROT_EXEC); log_printf(0, "munprotect: %p\n", X);} while (0)
+#define MPROTECT_SELF(X)
+#define MUNPROTECT_SELF(X)
 
 // Forward declarations
 void destroy_skiplist_node(tbx_sl_t *sl, tbx_sl_node_t *sn);

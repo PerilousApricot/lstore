@@ -95,6 +95,9 @@ else()
     endif()
 endif()
 
+# Keep the RPATH going so we can just use regular tarballs
+set(CMAKE_INSTALL_RPATH "\$ORIGIN/../lib64")
+
 # Now that we know what compiler we're using, we can "start" the project. If
 # you do it in the other order, cmake complains and reruns the CMakeLists.txt
 # compilation.
@@ -139,8 +142,8 @@ else()
 endif()
 
 if(ENABLE_ASAN)
-    set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls -shared-libasan")
-    set(LSTORE_SANITIZE_LINK_FLAGS "${LSTORE_SANITIZE_LINK_FLAGS} -fsanitize=address -lasan")
+    set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fsanitize=address -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+    set(LSTORE_SANITIZE_LINK_FLAGS "${LSTORE_SANITIZE_LINK_FLAGS} -fsanitize=address")
 endif()
 if(ENABLE_MSAN)
     set(LSTORE_SANITIZE_FLAGS "${LSTORE_SANITIZE_FLAGS} -fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1")

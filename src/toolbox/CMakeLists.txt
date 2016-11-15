@@ -89,11 +89,14 @@ set(LSTORE_LIBS ${APR_LIBRARY}
                     ${APRUTIL_LIBRARY}
                     ${ZLIB_LIBRARY}
                     ${OPENSSL_LIBRARIES}
+                    globus_gridftp_server
     )
 set(LSTORE_INCLUDE_SYSTEM ${APR_INCLUDE_DIR}
                     ${APRUTIL_INCLUDE_DIR}
                     ${OPENSSL_INCLUDE_DIR}
                     ${ZLIB_INCLUDE_DIR}
+                    "/usr/include/globus"
+
     )
 set(LSTORE_INCLUDE_PUBLIC ${PROJECT_SOURCE_DIR})
 

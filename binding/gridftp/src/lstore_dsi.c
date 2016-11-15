@@ -105,6 +105,211 @@ gridftp_check_core()
     signal(SIGSEGV, SIG_DFL);
     //sigaction(SIGSEGV, &sa, NULL);
 }
+
+/*
+ * Temporary read code
+ */
+#if 0
+char err_msg[256];
+static int local_io_block_size = 0;
+static int local_io_count = 0;
+/* send files to client */
+
+static
+void
+globus_l_gfs_posix2_read_from_storage(
+    lstore_handle_t *      posix_handle);
+
+static
+void
+globus_l_gfs_posix2_read_from_storage_cb(
+    globus_gfs_operation_t              op,
+    globus_result_t                     result,
+    globus_byte_t *                     buffer,
+    globus_size_t                       nbytes,
+    void *                              user_arg)
+{
+    GlobusGFSName(globus_l_gfs_posix2_read_from_storage_cb);
+    lstore_handle_t *      posix_handle;
+ 
+    posix_handle = (lstore_handle_t *) user_arg;
+
+    posix_handle->outstanding_count--;
+    globus_free(buffer);
+    globus_l_gfs_posix2_read_from_storage(posix_handle);
+}
+
+
+static
+void
+globus_l_gfs_posix2_read_from_storage(
+    lstore_handle_t *      posix_handle)
+{
+    globus_byte_t *                     buffer;
+    globus_size_t                       nbytes;
+    globus_size_t                       read_length;
+    globus_result_t                     rc;
+
+    GlobusGFSName(globus_l_gfs_posix2_read_from_storage);
+
+    globus_mutex_lock(&posix_handle->mutex);
+    while (posix_handle->outstanding_count < posix_handle->optimal_count &&
+           ! posix_handle->done) 
+    {
+        buffer = globus_malloc(posix_handle->block_size);
+        if (buffer == NULL)
+        {
+            rc = GlobusGFSErrorGeneric("fail to allocate buffer");
+            globus_gridftp_server_finished_transfer(posix_handle->op, rc);
+            return;
+        }
+/*
+        if (posix_handle->seekable)
+        {
+            lseek(posix_handle->fd, posix_handle->offset, SEEK_SET);
+        }
+ */ 
+        /* block_length == -1 indicates transferring data to until eof */
+        if (posix_handle->xfer_length < 0 ||   
+            posix_handle->xfer_length > posix_handle->block_size)
+        {
+            read_length = posix_handle->block_size;
+        }
+        else
+        {
+            read_length = posix_handle->xfer_length;
+        }
+ 
+        nbytes = lio_read(posix_handle->fd,
+                                (char *)buffer,
+                                read_length,
+                                posix_handle->offset,
+                                NULL);
+        //read(posix_handle->fd, buffer, read_length);
+        if (nbytes == 0)    /* eof */
+        {
+            posix_handle->done = GLOBUS_TRUE;
+            sprintf(err_msg,"send %d blocks of size %d bytes\n",
+                            local_io_count,local_io_block_size);
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO,err_msg);
+            local_io_count = 0;
+            local_io_block_size = 0;
+        }
+        else
+        {
+            if (nbytes != local_io_block_size)
+            {
+                 if (local_io_block_size != 0)
+                 {
+                      sprintf(err_msg,"send %d blocks of size %d bytes\n",
+                                      local_io_count,local_io_block_size);
+                      globus_gfs_log_message(GLOBUS_GFS_LOG_INFO,err_msg);
+                 }
+                 local_io_block_size = nbytes;
+                 local_io_count=1;
+            }
+            else
+            {
+                 local_io_count++;
+            }
+        }
+        if (! posix_handle->done) 
+        {
+            posix_handle->outstanding_count++;
+            posix_handle->offset += nbytes;
+            posix_handle->xfer_length -= nbytes;
+            rc = globus_gridftp_server_register_write(posix_handle->op,
+                                       buffer,
+                                       nbytes,
+                                       posix_handle->offset - nbytes,
+                                       -1,
+                                       globus_l_gfs_posix2_read_from_storage_cb,
+                                       posix_handle);
+            if (rc != GLOBUS_SUCCESS)
+            {
+                rc = GlobusGFSErrorGeneric("globus_gridftp_server_register_write() fail");
+                globus_gridftp_server_finished_transfer(posix_handle->op, rc);
+            }
+        }
+    }
+    globus_mutex_unlock(&posix_handle->mutex);
+    if (posix_handle->outstanding_count == 0)
+    {
+        gop_sync_exec(lio_close_gop(posix_handle->fd));
+        globus_gridftp_server_finished_transfer(posix_handle->op, 
+                                                    GLOBUS_SUCCESS);
+    }
+    return;
+}
+
+/*************************************************************************
+ *  send
+ *  ----
+ *  This interface function is called when the client requests to receive
+ *  a file from the server.
+ *
+ *  To send a file to the client the following functions will be used in roughly
+ *  the presented order.  They are doced in more detail with the
+ *  gridftp server documentation.
+ *
+ *      globus_gridftp_server_begin_transfer();
+ *      globus_gridftp_server_register_write();
+ *      globus_gridftp_server_finished_transfer();
+ *
+ ************************************************************************/
+static
+void
+globus_l_gfs_posix2_send(
+    globus_gfs_operation_t              op,
+    globus_gfs_transfer_info_t *        transfer_info,
+    void *                              user_arg)
+{
+    globus_result_t                     rc;
+    lstore_handle_t *       posix_handle;
+    GlobusGFSName(globus_l_gfs_posix2_send);
+
+    posix_handle = (lstore_handle_t *) user_arg;
+
+    posix_handle->path = copy_path_to_lstore("/lio/lfs", transfer_info->pathname);
+    posix_handle->op = op;
+    posix_handle->outstanding_count = 0;
+    posix_handle->done = GLOBUS_FALSE;
+    globus_gridftp_server_get_block_size(op, &posix_handle->block_size);
+
+    globus_gridftp_server_get_read_range(posix_handle->op,
+                                         &posix_handle->offset,
+                                         &posix_handle->xfer_length);
+
+    globus_gridftp_server_begin_transfer(posix_handle->op, 0, posix_handle);
+    int  open_flags = lio_fopen_flags("r");
+    int retval = gop_sync_exec(lio_open_gop(lio_gc,
+                                lio_gc->creds,
+                                posix_handle->path,
+                                open_flags,
+                                NULL,
+                                &(posix_handle->fd), 60));
+    if (retval != OP_STATE_SUCCESS || (!posix_handle->fd)) {
+        rc = GlobusGFSErrorGeneric("open() fail");
+        globus_gridftp_server_finished_transfer(op, rc);
+    }
+
+/*
+ * /dev/null and /dev/zero are not seekable. They are used for memory-to-memory
+ * performance test.
+ */
+    posix_handle->seekable=1;
+    if (! strcmp(posix_handle->path,"/dev/zero"))
+    {
+        posix_handle->seekable=0;
+    }
+    
+    globus_gridftp_server_get_optimal_concurrency(posix_handle->op,
+                                                  &posix_handle->optimal_count);
+
+    globus_l_gfs_posix2_read_from_storage(posix_handle);
+    return;
+}
+#endif
 /*
  * start
  * -----
@@ -190,15 +395,15 @@ globus_l_gfs_lstore_trev(
     GlobusGFSName(globus_l_gfs_lstore_trev);
 
     lstore_handle = (lstore_handle_t *) user_arg;
-    globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "[lstore] Recieved a transfer event.\n");
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Recieved a transfer event.\n");
 
     switch (event_info->type) {
         case GLOBUS_GFS_EVENT_TRANSFER_ABORT:
-            globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "[lstore] Got an abort request to the lstore client.\n");
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Got an abort request to the lstore client.\n");
             user_handle_done(lstore_handle, XFER_ERROR_DEFAULT);
             break;
         default:
-            globus_gfs_log_message(GLOBUS_GFS_LOG_ERR, "[lstore] Got some other transfer event %d.\n", event_info->type);
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Got some other transfer event %d.\n", event_info->type);
     }
 }
 
@@ -353,6 +558,9 @@ globus_l_gfs_lstore_recv(
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] recv fail\n");
         GlobusGFSErrorGenericStr(result, ("[lstore] Failed to recv file."));
         globus_gridftp_server_finished_transfer(op, result);
+    } else if (lstore_handle->fd == NULL) {
+        GlobusGFSErrorGenericStr(result, ("[lstore] Failed to open file."));
+        globus_gridftp_server_finished_transfer(op, result);
     } else {
         /*
          * Now that we've begun the transfer, we trigger the initial
@@ -406,6 +614,7 @@ globus_l_gfs_lstore_send(
     globus_gridftp_server_get_write_range(lstore_handle->op,
                                             &lstore_handle->offset,
                                             &lstore_handle->xfer_length);
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Transmitting %ld bytes from offset %ld\n", lstore_handle->xfer_length, lstore_handle->offset);
     globus_gridftp_server_get_optimal_concurrency(lstore_handle->op,
                                                     &lstore_handle->optimal_count);
     /*
@@ -422,6 +631,9 @@ globus_l_gfs_lstore_send(
         // Catchall for generic globus oopsies
         GlobusGFSErrorGenericStr(result, ("[lstore] Failed to send file."));
         globus_gridftp_server_finished_transfer(op, result);
+    } else if (lstore_handle->fd == NULL) {
+        GlobusGFSErrorGenericStr(result, ("[lstore] Failed to open file."));
+        globus_gridftp_server_finished_transfer(op, result);
     } else {
         /*
          * Now that we've begun the transfer, we trigger the initial
@@ -430,14 +642,30 @@ globus_l_gfs_lstore_send(
          */
         globus_mutex_lock(&lstore_handle->mutex);
         int ret = gfs_xfer_pump(lstore_handle);
-        globus_mutex_unlock(&lstore_handle->mutex);
         if (ret) {
             globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] send pump fail\n");
             globus_gridftp_server_finished_transfer(op, result);
         }
+        if (lstore_handle->done && (lstore_handle->outstanding_count == 0)) {
+            user_xfer_close(lstore_handle);
+            if (!lstore_handle->done_sent && (lstore_handle->error == XFER_ERROR_NONE)) {
+                globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] shortcut xfer success: %s\n", lstore_handle->path);
+                globus_gridftp_server_finished_transfer(lstore_handle->op, GLOBUS_SUCCESS);
+                lstore_handle->done_sent = 1;
+            } else if (!lstore_handle->done_sent && (lstore_handle->error != XFER_ERROR_NONE)) {
+                globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] shortcut xfer failure: %d, %s. reason:\n", lstore_handle->rc, lstore_handle->path);
+                if (lstore_handle->rc == GLOBUS_SUCCESS) {
+                    globus_gridftp_server_finished_transfer(lstore_handle->op, GLOBUS_FAILURE);
+                } else {
+                    globus_gridftp_server_finished_transfer(lstore_handle->op, lstore_handle->rc);
+                }
+                lstore_handle->done_sent = 1;
+            }
+        }
+        globus_mutex_unlock(&lstore_handle->mutex);
     }
-
 }
+
 /**
  * Enumerates this plugin's function pointers to gridftp
  */
@@ -449,9 +677,9 @@ globus_gfs_storage_iface_t globus_l_gfs_lstore_dsi_iface =
     .destroy_func = globus_l_gfs_lstore_destroy,
     .send_func = globus_l_gfs_lstore_send,
     .recv_func = globus_l_gfs_lstore_recv,
+    .trev_func = globus_l_gfs_lstore_trev,
     .command_func = globus_l_gfs_lstore_command,
     .stat_func = globus_l_gfs_lstore_stat,
-    .trev_func = globus_l_gfs_lstore_trev,
 };
 
 /**
@@ -570,12 +798,12 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
     GlobusGFSName(gfs_xfer_pump);
 
     globus_result_t rc = GLOBUS_SUCCESS;
-    if (h->xfer_direction == XFER_RECV) {
-        int old_count = h->optimal_count;
+    int old_count = h->optimal_count;
+    if (!h->done) {
         globus_gridftp_server_get_optimal_concurrency(h->op, &h->optimal_count);
-        if (old_count != h->optimal_count) {
-            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Optimal %d -> %d.\n", old_count, h->optimal_count);
-        }
+    }
+    if (old_count != h->optimal_count) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Optimal %d -> %d.\n", old_count, h->optimal_count);
     }
     int concurrency_needed = h->optimal_count - h->outstanding_count;
     concurrency_needed = my_min(MAX_CONCURRENCY_PER_LOOP, concurrency_needed);
@@ -587,7 +815,7 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
     for (int i = 0; ((i < concurrency_needed) && !h->done); ++i) {
         // alloc (USER CODE)
         globus_byte_t *buf = globus_malloc(h->block_size);
-        if (h->outstanding_count == 0) {
+        if (h->outstanding_count == 0 || (strstr(h->path, "/cms/store/unmerged/SAM/testSRM/SAM-se1.accre.vanderbilt.edu/lcg-util/") != NULL)) {
             globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump @ 0, pump count %d.\n", i);
         }
         // if recv
@@ -620,11 +848,17 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
             globus_off_t offset = h->offset;
             apr_time_t read_timer;
             STATSD_TIMER_RESET(read_timer);
+            if (h->outstanding_count == 0) {
+                globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump @ 0, starting read %d@%ld.\n", read_length, offset);
+            }
             int nbytes = lio_read(h->fd,
                                             (char *)buf,
                                             read_length,
                                             offset,
                                             NULL);
+            if (h->outstanding_count == 0) {
+                globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump @ 0, ending read %d, bytes: %d.\n", i, nbytes);
+            }
             STATSD_TIMER_POST("lfs_read_time", read_timer);
             STATSD_COUNT("lfs_bytes_read", nbytes);
             //   if bytes = 0
@@ -637,6 +871,10 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
             } else {
                 // more coming
                 // register read
+                if (h->outstanding_count == 0) {
+                    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Register write off: %ld bytes: %d, buf: %p\n", h->offset, nbytes, buf);
+                }
+
                 rc = globus_gridftp_server_register_write(h->op,
                                                             buf,
                                                             nbytes,
@@ -644,17 +882,19 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
                                                             -1,
                                                             gfs_send_callback,
                                                             h);
-                ++(h->outstanding_count);
                 // int offset
                 h->offset += nbytes;
+                h->xfer_length -= nbytes;
                 if (rc != GLOBUS_SUCCESS) {
                     // failed to add the write
-                    char *res_str = globus_error_print_friendly(globus_error_peek(rc));
+                    char *res_str = globus_error_print_chain(globus_error_peek(rc));
                     globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] ERROR in register_write: %d %p %d %d: %s\n", rc, buf, nbytes, h->offset, res_str);
                     globus_free(res_str);
                     user_handle_done(h, XFER_ERROR_DEFAULT);
                     h->rc = rc;
                     break;
+                } else {
+                    ++(h->outstanding_count);
                 }
             }
         }
@@ -667,7 +907,9 @@ static void gfs_send_callback(globus_gfs_operation_t op,
                                 globus_byte_t *buffer,
                                 globus_size_t nbytes,
                                 void *user_arg) {
+    //globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB_send1: %d %p %d.\n", result, buffer, nbytes);
     gfs_xfer_callback(op, result, buffer, nbytes, 0, 0, user_arg);
+    //globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB_send2: %d %p %d.\n", result, buffer, nbytes);
 }
 
 void gfs_recv_callback(globus_gfs_operation_t op,
@@ -691,17 +933,19 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
     lstore_handle_t *h = (lstore_handle_t *) user_arg;
     
     globus_mutex_lock(&h->mutex);
-    if (((offset == 0) && (h->xfer_direction == XFER_RECV)) || (result != 0) || (eof != 0) || (nbytes <= 0)) {
+    if (((offset == 0) && (h->xfer_direction == XFER_RECV)) || (result != 0) || (eof != 0) || (nbytes <= 0) || (h->offset == 0 && h->xfer_direction == XFER_SEND) || (strstr(h->path, "/cms/store/unmerged/SAM/testSRM/SAM-se1.accre.vanderbilt.edu/lcg-util/") != NULL)) {
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO,
-                                "[lstore] gfs_CB xf: %d res: %d nb: %d off: %d eof: %d out: %d done: %d fd: %p\n",
-                                h->xfer_direction, result, nbytes, offset, eof, h->outstanding_count, h->done, h->fd);
+                                "[lstore] gfs_CB xf: %d res: %d nb: %d off: %ld eof: %d out: %d done: %d fd: %p h_off: %ld\n",
+                                h->xfer_direction, result, nbytes, offset, eof, h->outstanding_count, h->done, h->fd, h->offset);
         if (result != 0) {
             char *res_str = globus_error_print_friendly(globus_error_peek(result));
             globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] gfs_CB result: %s\n", res_str);
             globus_free(res_str);
         }
     }
-    if (h->done && h->rc != GLOBUS_SUCCESS && h->xfer_direction == XFER_RECV) {
+
+    if (h->done) {
+        //globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB: done\n");
         if (h->rc == GLOBUS_SUCCESS) {
             h->rc = result;
         }
@@ -709,15 +953,21 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
     }
 
     if (result != 0) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB: result != 0\n");
         user_handle_done(h, XFER_ERROR_DEFAULT);
         if (h->rc == GLOBUS_SUCCESS) {
             h->rc = result;
         }
         goto cleanup;
-    } else if (eof) {
+    }
+
+    if (eof) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB: EOF\n");
         user_handle_done(h, XFER_ERROR_NONE);
     }
-    if ((nbytes <= 0) && (h->xfer_direction == XFER_RECV)) {
+
+    if (nbytes <= 0) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB: Xfer of zero bytes\n");
         user_handle_done(h, XFER_ERROR_NONE);
         goto cleanup;
     }
@@ -812,9 +1062,7 @@ cleanup:
             globus_gridftp_server_finished_transfer(h->op, GLOBUS_SUCCESS);
             h->done_sent = 1;
         } else if (!h->done_sent && (h->error != XFER_ERROR_NONE)) {
-            char *res_str = globus_error_print_friendly(globus_error_peek(result));
-            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] xfer failure: %d, %s. reason:\n", h->rc, h->path, res_str);
-            globus_free(res_str);
+            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] xfer failure: %d, %s. reason:\n", h->rc, h->path);
             if (h->rc == GLOBUS_SUCCESS) {
                 globus_gridftp_server_finished_transfer(h->op, GLOBUS_FAILURE);
             } else {
@@ -828,11 +1076,11 @@ cleanup:
         gfs_xfer_pump(h);
     }
 
-
     if ((!h->done) && (h->outstanding_count == 0)) {
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] gfs_CB bad drain!.\n");
     }
     globus_mutex_unlock(&h->mutex);
+    //globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] gfs_CB return!.\n");
 
     return;
 }

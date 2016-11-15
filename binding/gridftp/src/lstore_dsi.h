@@ -275,6 +275,9 @@ struct lstore_handle_t {
     uint32_t *cksum_adler;
     globus_off_t *cksum_offset;
     globus_size_t *cksum_nbytes;
+
+    // Test stuff for stolen posix api
+    bool seekable;
 };
 
 struct lstore_reg_info_t {
