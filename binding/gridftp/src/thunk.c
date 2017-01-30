@@ -208,8 +208,8 @@ int user_recv_init(lstore_handle_t *h,
      * Configure buffers for checksumming
      * Guess 20GB file length if we don't get an actual guess
      */
-    long length_guess = (h->xfer_length > 0) ? h->xfer_length : (20*1024L*1024L*1024L);
-    size_t num_adler = (length_guess / h->block_size) + 10;
+    long length_guess = (h->xfer_length > 0) ? h->xfer_length : (10*1024L*1024L*1024L);
+    size_t num_adler = (length_guess / 262144) + 10;
     h->cksum_adler = globus_calloc(num_adler, sizeof(globus_size_t));
     h->cksum_offset = globus_calloc(num_adler, sizeof(globus_size_t));
     h->cksum_nbytes = globus_calloc(num_adler, sizeof(globus_size_t));
