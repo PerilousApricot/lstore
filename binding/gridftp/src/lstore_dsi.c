@@ -990,7 +990,7 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
             adler32_idx = 0;
         }
         while ((h->cksum_nbytes[adler32_idx] != 0)) {
-            if (adler32_idx == h->cksum_blocks) {
+            if (adler32_idx == h->cksum_blocks - 1) {
                 int new_count = h->cksum_blocks * 2;
                 globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Checksum blocks %d -> %d\n", h->cksum_blocks, new_count);
 
