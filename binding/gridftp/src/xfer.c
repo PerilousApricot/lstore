@@ -63,6 +63,7 @@ int plugin_xfer_init(lstore_handle_t *h,
     }
 
     if (transfer_info->alloc_size > 0) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Expecting %d bytes\n", h->fd, retval);
         gop_sync_exec(lio_truncate_gop(h->fd, -transfer_info->alloc_size));
     }
     return retval;
