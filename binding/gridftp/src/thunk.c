@@ -305,53 +305,6 @@ void user_xfer_close(lstore_handle_t *h) {
     globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 3Closed: %s\n", h->path);
 }
 
-void user_xfer_callback(lstore_handle_t *h,
-                                globus_gfs_operation_t op,
-                                globus_result_t result,
-                                globus_byte_t *buffer,
-                                globus_size_t nbytes,
-                                globus_off_t offset,
-                                globus_bool_t eof) {
-    if (result != GLOBUS_SUCCESS) {
-        user_handle_done(h, XFER_ERROR_DEFAULT);
-        h->done = GLOBUS_TRUE;
-    } else if (eof) {
-        user_handle_done(h, XFER_ERROR_NONE);
-    }
-    if ((h->xfer_direction == XFER_RECV) && (nbytes > 0) && (h->fd)) {
-        // Store the adler32 for this block
-        uint32_t adler32_accum = adler32(0L, Z_NULL, 0);
-        adler32_accum = adler32(adler32_accum, (const Bytef *)buffer, nbytes);
-        size_t adler32_idx = offset / h->block_size;
-        while (h->cksum_nbytes[adler32_idx] != 0) {
-            ++adler32_idx;
-        }
-        h->cksum_nbytes[adler32_idx] = nbytes;
-        h->cksum_offset[adler32_idx] = offset;
-        h->cksum_adler[adler32_idx] = adler32_accum;
-        if (adler32_idx + 1 > h->cksum_end_blocks) {
-            h->cksum_end_blocks = adler32_idx + 1;
-        }
-        if (offset + nbytes > h->cksum_total_len) {
-            h->cksum_total_len = offset + nbytes;
-        }
-        globus_size_t written = lio_write(h->fd,
-                                            (char *)buffer,
-                                            nbytes,
-                                            offset,
-                                            NULL);
-        if (written != nbytes) {
-            user_handle_done(h, XFER_ERROR_DEFAULT);
-        }
-    }
-    if (!h->fd) {
-        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Missing FD in CB??\n");
-        user_handle_done(h, XFER_ERROR_DEFAULT);
-    }
-
-    globus_free(buffer);
-}
-
 int user_xfer_pump(lstore_handle_t *h,
                     char **buf_idx,
                     lstore_reg_info_t *reg_idx,
