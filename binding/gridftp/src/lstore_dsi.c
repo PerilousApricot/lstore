@@ -546,7 +546,7 @@ globus_l_gfs_lstore_recv(
      * Otherwise, we'll just let control fall off the end of this function.
      */
     globus_gridftp_server_begin_transfer(lstore_handle->op, 0, lstore_handle);
-    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Performing init\n");
+    globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Performing recv init. Expect %i bytes\n", lstore_handle->xfer_length);
     int retval = user_recv_init(lstore_handle, transfer_info);
     globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] Init performed\n");
     if (!lstore_handle->fd) {
@@ -859,6 +859,15 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
             if (h->outstanding_count == 0) {
                 globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] pump @ 0, ending read %d, bytes: %d.\n", i, nbytes);
             }
+            // HACK: This is dirty
+            int all_zero = 1;
+            for (size_t check_off = 0; check_off < read_length; ++check_off) {
+                if (buf[check_off] != '\0') {
+                    all_zero = 0;
+                    break;
+                }
+            }
+            
             STATSD_TIMER_POST("lfs_read_time", read_timer);
             STATSD_COUNT("lfs_bytes_read", nbytes);
             //   if bytes = 0
@@ -867,6 +876,10 @@ static globus_result_t gfs_xfer_pump(lstore_handle_t *h) {
                 user_handle_done(h, XFER_ERROR_NONE);
             } else if (nbytes < 0) {
                 // bad read
+                user_handle_done(h, XFER_ERROR_DEFAULT);
+            } else if (all_zero == 1) {
+                // All zeros? go away.
+                globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] ERROR: All Zeros\n");
                 user_handle_done(h, XFER_ERROR_DEFAULT);
             } else {
                 // more coming
@@ -933,22 +946,9 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
     lstore_handle_t *h = (lstore_handle_t *) user_arg;
     
     globus_mutex_lock(&h->mutex);
-    if (((offset == 0) && (h->xfer_direction == XFER_RECV)) || (result != 0) || (eof != 0) || (nbytes <= 0) || (h->offset == 0 && h->xfer_direction == XFER_SEND) || (strstr(h->path, "/cms/store/unmerged/SAM/testSRM/SAM-se1.accre.vanderbilt.edu/lcg-util/") != NULL)) {
-        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO,
-                                "[lstore] gfs_CB xf: %d res: %d nb: %d off: %ld eof: %d out: %d done: %d fd: %p h_off: %ld\n",
-                                h->xfer_direction, result, nbytes, offset, eof, h->outstanding_count, h->done, h->fd, h->offset);
-        if (result != 0) {
-            char *res_str = globus_error_print_friendly(globus_error_peek(result));
-            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] gfs_CB result: %s\n", res_str);
-            globus_free(res_str);
-        }
-    }
-
-    if (h->done) {
-        //globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB: done\n");
-        if (h->rc == GLOBUS_SUCCESS) {
-            h->rc = result;
-        }
+    if (nbytes <= 0) {
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB: Xfer of zero bytes\n");
+        user_handle_done(h, XFER_ERROR_NONE);
         goto cleanup;
     }
 
@@ -961,15 +961,21 @@ static void gfs_xfer_callback(globus_gfs_operation_t op,
         goto cleanup;
     }
 
+    if (result != 0) {
+        char *res_str = globus_error_print_friendly(globus_error_peek(result));
+        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] gfs_CB result: %s\n", res_str);
+        globus_free(res_str);
+    }
+
+    if (h->done) {
+        if (h->rc == GLOBUS_SUCCESS) {
+            h->rc = result;
+        }
+    }
+
     if (eof) {
         globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB: EOF\n");
         user_handle_done(h, XFER_ERROR_NONE);
-    }
-
-    if (nbytes <= 0) {
-        globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] CB: Xfer of zero bytes\n");
-        user_handle_done(h, XFER_ERROR_NONE);
-        goto cleanup;
     }
 
     if ((nbytes > 0) && (h->xfer_direction == XFER_RECV)) {

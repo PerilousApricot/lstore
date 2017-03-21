@@ -244,6 +244,7 @@ enum xfer_direction_t {
 enum xfer_error_t {
     XFER_ERROR_NONE = 0,
     XFER_ERROR_DEFAULT = 1,
+    XFER_ERROR_ALLZERO = 2,
 };
 
 // Structures
