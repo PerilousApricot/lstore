@@ -230,6 +230,19 @@ int user_recv_init(lstore_handle_t *h,
 
 int user_send_init(lstore_handle_t *h,
                     globus_gfs_transfer_info_t * transfer_info) {
+    /*
+     * Configure buffers for checksumming
+     * Guess 20GB file length if we don't get an actual guess
+     */
+    long length_guess = (h->xfer_length > 0) ? h->xfer_length : (10*1024L*1024L*1024L);
+    size_t num_adler = (length_guess / 262144) + 10;
+    h->cksum_adler = globus_calloc(num_adler, sizeof(globus_size_t));
+    h->cksum_offset = globus_calloc(num_adler, sizeof(globus_size_t));
+    h->cksum_nbytes = globus_calloc(num_adler, sizeof(globus_size_t));
+    h->cksum_blocks = num_adler;
+    if (!h->cksum_adler || !h->cksum_offset || !h->cksum_nbytes) {
+        return -1;
+    }
     h->xfer_direction = XFER_SEND;
     int retval = plugin_xfer_init(h, transfer_info, XFER_SEND);
     if (!retval) {
@@ -280,18 +293,30 @@ void user_xfer_close(lstore_handle_t *h) {
                     }
                 }
             }
-            globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2.5Closing: bytes: %zd path: %s\n", offset, h->path);
-            // Update checksum
-            char adler32_human[2*sizeof(uLong)+1];
-            human_readable_adler32(adler32_human, adler);
-            lio_setattr(lio_gc, lio_gc->creds, h->path, NULL,
-                            "user.gridftp.adler32",
-                            adler32_human, strlen(adler32_human));
+            globus_off_t max_offset = 0;
+            for (i = 0; i <= h->cksum_end_blocks ; ++i) {
+                globus_off_t this_offset = h->cksum_offset[i] + h->cksum_nbytes[i];
+                max_offset = (this_offset > max_offset) ? this_offset : max_offset;
+            }
+            if (max_offset != offset) {
+                // We missed a block somehow
+                globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2.5Closing (failed): bytes %zd != cksum %zd path: %s\n", offset, max_offset, h->path);
+                h->error = XFER_ERROR_DEFAULT;
+                h->closed = 1;
+            } else {
+                globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2.5Closing: bytes: %zd path: %s\n", offset, h->path);
+                // Update checksum
+                char adler32_human[2*sizeof(uLong)+1];
+                human_readable_adler32(adler32_human, adler);
+                lio_setattr(lio_gc, lio_gc->creds, h->path, NULL,
+                                "user.gridftp.adler32",
+                                adler32_human, strlen(adler32_human));
 
-            // Final flag to say everything is okay
-            lio_setattr(lio_gc, lio_gc->creds, h->path, NULL,
-                            "user.gridftp.success", "okay", 4);
-            h->closed = 1;
+                // Final flag to say everything is okay
+                lio_setattr(lio_gc, lio_gc->creds, h->path, NULL,
+                                "user.gridftp.success", "okay", 4);
+                h->closed = 1;
+            }
         } else {
             globus_gfs_log_message(GLOBUS_GFS_LOG_INFO, "[lstore] 2Closing: %s\n", h->path);
             STATSD_TIMER_POST("lfs_close_time", close_timer);
